@@ -6,13 +6,22 @@ only calls that match a rule (amount above a threshold, in this scenario)
 interrupt. This is what keeps reviewer load proportional to risk instead
 of firing on every call.
 
-A second demo here demonstrates the opposite failure mode, per Turan,
-"Oversight Has a Capacity" (arXiv:2606.08919): gating everything does not
-automatically make a system safer. A reviewer who has to clear a flood of
+The single scalar threshold here (`high_value_refund`) is the cheap end of
+a larger screen, not the state of the art on its own. Magentic-UI
+(Mozannar et al., arXiv:2507.22358) and Spider-Sense (Yu et al.,
+arXiv:2602.05386) show real 2025-2026 guards reserve a rule like this one
+for the obvious ends of the risk range and route the ambiguous middle to
+a model judge instead; see `risk_classifier.py` for that two-tier screen.
+
+A second demo here shows one failure mode of gating everything: without a
+deterministic policy backstop, a reviewer who has to clear a flood of
 low-value requests learns to rubber-stamp, and a rubber-stamping reviewer
-approves a malicious high-value action along with everything else. A
-deterministic policy backstop, evaluated regardless of what the reviewer
-decided, is what actually stops it.
+approves a malicious high-value action along with everything else. That is
+one binary point on a larger curve; Turan, "Oversight Has a Capacity"
+(arXiv:2606.08919), shows realized safety is actually an inverted-U in the
+escalation rate, so escalating everything is itself unsafe, not only
+unsafe when a policy backstop happens to be missing. See `capacity.py`
+for the full curve and the safety-optimal, capacity-fitted threshold.
 """
 
 from __future__ import annotations
@@ -212,7 +221,10 @@ def run_flooding_demo() -> FloodingDemoResult:
     never reading the amount) lets the malicious one through when every
     request is gated and nothing else stands in the way. Adding a
     deterministic policy cap ahead of the human decision stops it even
-    though the same rubber-stamping reviewer is still in the loop.
+    though the same rubber-stamping reviewer is still in the loop. This is
+    one point on Turan's inverted-U safety curve (arXiv:2606.08919); see
+    `capacity.py` for the swept curve and why escalating everything is
+    itself the unsafe end of it, not just the end with no backstop.
     """
     always_high_risk: RiskPredicate = lambda _action: True  # noqa: E731 - demo predicate, kept inline for clarity
 

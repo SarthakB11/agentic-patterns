@@ -7,6 +7,15 @@ low-confidence one escalates to a reviewer. Only genuine exceptions reach
 a human, the way an anomaly detector or an explicit uncertainty flag would
 in a production system.
 
+Self-reported confidence is one noisy trigger, not a crisp oracle: Turan,
+"Oversight Has a Capacity" (arXiv:2606.08919), finds reviewers themselves
+agree on what is risky at only Fleiss kappa 0.52 on 125 adversarially
+weighted actions, so there is no single ground-truth risk label to
+threshold confidence against in the first place, on top of self-reported
+model confidence being a separately known-poorly-calibrated signal. The
+module below is still a fine teaching example of a dynamic trigger; treat
+the threshold as illustrative, not as a claim that 0.70 is a validated cut.
+
 Two latency shapes are demonstrated. `run_escalation_demo` is synchronous:
 the caller waits for the low-confidence request to resolve before moving
 on. `run_async_escalation_demo` is asynchronous: several proposals are

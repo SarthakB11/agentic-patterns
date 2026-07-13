@@ -30,6 +30,21 @@ no API key:
    reviewed afterward, with the option to roll it back.
 7. Batched review: several pending actions are cleared in one reviewer
    pass and decisions map back to the right action by identifier.
+8. Model-judged risk classification: a cheap rule tier resolves the
+   obvious ends (always-gate, never-gate); only the ambiguous middle is
+   routed to a model judge, and only two of five actions cost a model call.
+9. Load-aware capacity calibration: sweeping the escalation threshold
+   traces an inverted-U safety curve; escalating everything floods the
+   reviewer and is itself unsafe, not just wasteful.
+10. Approval memory: a human's verdict on an action signature is cached,
+    so a repeated, already-blessed action stops costing a new prompt,
+    while a hard safety ceiling still forces a high-risk cousin to a human.
+11. Mandatory oversight (EU AI Act Article 14): an in-set action is gated
+    every time regardless of any upstream shortcut, and a two-person quorum
+    is required for the highest-risk class.
+12. Human-initiated interrupt: a reviewer takes over a running plan mid-run
+    to edit the remaining steps, inject a step, or abort, instead of the
+    agent hitting a predicate gate.
 
 Run it from the repository root:
 
@@ -58,11 +73,16 @@ from agentic_patterns import ToolCall
 
 from patterns.human_in_the_loop import (
     approval_gate,
+    approval_memory,
     batched,
+    capacity,
     escalation,
+    interrupt,
+    mandatory_oversight,
     plan_review,
     post_hoc,
     resume,
+    risk_classifier,
     risk_tier,
 )
 from patterns.human_in_the_loop.gate import AuditLog, ReviewRequest, run_gate
@@ -218,7 +238,56 @@ def main(argv: list[str] | None = None) -> None:
     assert len(batch_ledger) == 2  # batch-3 was rejected, so only 1 and 2 sent
     print()
 
-    print("All seven sub-variants completed without exhausting their scripts.")
+    print("=== 8. Model-judged risk classification ===")
+    risk_result = risk_classifier.run_risk_classifier_demo()
+    for name in ("always_gate", "never_gate", "trivial", "judge_gate", "judge_auto"):
+        print(f"{name}: {format_outcome(risk_result.outcomes[name])}")
+    print(f"model (judge) calls made for five actions: {risk_result.judge_calls_made}")
+    assert risk_result.judge_calls_made == 2
+    print()
+
+    print("=== 9. Load-aware capacity calibration (inverted-U safety curve) ===")
+    u_result = capacity.run_inverted_u_demo()
+    nothing, everything = u_result.curve[-1], u_result.curve[0]
+    print(f"escalate-nothing safety:    {nothing.safety:.2f} (threshold {nothing.threshold})")
+    print(f"escalate-everything safety: {everything.safety:.2f} (threshold {everything.threshold})")
+    print(f"safety-optimal safety:      {u_result.optimal.safety:.2f} (threshold {u_result.optimal.threshold})")
+    flood_result = capacity.run_flooding_vs_optimal_demo()
+    print(f"buried malicious action blocked by escalate-everything: {flood_result.blocked_by_escalate_everything}")
+    print(f"buried malicious action blocked at the optimal threshold: {flood_result.blocked_at_optimal_threshold}")
+    assert u_result.optimal.safety > nothing.safety
+    assert u_result.optimal.safety > everything.safety
+    print()
+
+    print("=== 10. Approval memory: learn once, auto-resolve on repeat ===")
+    first, second, mem_ledger = approval_memory.run_learn_then_auto_demo()
+    print(f"first shipping refund:  {format_outcome(first)}")
+    print(f"repeat, same signature: {format_outcome(second)}")
+    _, _, ceiling_consultations = approval_memory.run_safety_ceiling_demo()
+    print(f"high-risk cousin of an approved signature still consults a human: {ceiling_consultations == 2}")
+    assert len(mem_ledger) == 2
+    print()
+
+    print("=== 11. Mandatory oversight (EU AI Act Article 14) ===")
+    mandatory_outcome, oversight_log = mandatory_oversight.run_non_overridable_demo()
+    print(f"in-set action, permissive shortcut ignored: {format_outcome(mandatory_outcome)}")
+    print(f"oversight capability recorded: {oversight_log.records[0].could_override and oversight_log.records[0].could_stop}")
+    quorum_outcome, bio_ledger = mandatory_oversight.run_two_person_demo()
+    print(f"two-person biometric quorum: {format_outcome(quorum_outcome)}")
+    assert len(bio_ledger) == 1
+    print()
+
+    print("=== 12. Human-initiated interrupt (real-time monitoring) ===")
+    edit_result, edit_int_ledger = interrupt.run_edit_mid_run_demo()
+    print(f"steps executed after a mid-run edit: {len(edit_result.outcomes)}")
+    abort_result, abort_ledger = interrupt.run_abort_demo()
+    print(f"steps executed after a mid-run abort: {len(abort_result.outcomes)} (of 3 proposed)")
+    print(f"abort reason: {abort_result.stop_reason}")
+    assert abort_result.aborted is True
+    assert len(abort_ledger) == 1
+    print()
+
+    print("All twelve sub-variants completed without exhausting their scripts.")
 
 
 def _run_interactive_scenario() -> None:

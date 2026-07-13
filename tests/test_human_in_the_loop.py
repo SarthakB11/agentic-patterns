@@ -14,8 +14,21 @@ import pytest
 
 from agentic_patterns import MockProvider, ToolCall, scripted_tool_call
 
-from patterns.human_in_the_loop import approval_gate, batched, escalation, plan_review, post_hoc, resume, risk_tier
-from patterns.human_in_the_loop.fake_tools import build_refund_registry, build_support_ops_registry
+from patterns.human_in_the_loop import (
+    approval_gate,
+    approval_memory,
+    batched,
+    capacity,
+    escalation,
+    interrupt,
+    mandatory_oversight,
+    plan_review,
+    post_hoc,
+    resume,
+    risk_classifier,
+    risk_tier,
+)
+from patterns.human_in_the_loop.fake_tools import build_extended_ops_registry, build_refund_registry, build_support_ops_registry
 from patterns.human_in_the_loop.gate import (
     AuditLog,
     Decision,
@@ -26,6 +39,22 @@ from patterns.human_in_the_loop.gate import (
     counting_clock,
     run_gate,
 )
+
+
+class _RecordingDecisionSource:
+    """A `DecisionSource` that records the request it was asked to decide.
+
+    Used where a test needs to inspect what a gate handed the reviewer
+    (for example the context string), not just the resulting outcome.
+    """
+
+    def __init__(self, decision: Decision) -> None:
+        self.decision = decision
+        self.received_request: ReviewRequest | None = None
+
+    def decide(self, request: ReviewRequest) -> Decision:
+        self.received_request = request
+        return self.decision
 
 # --- fake_tools.py: shared ledger schema --------------------------------
 
@@ -389,6 +418,276 @@ def test_batch_review_missing_decision_reports_unresolved_without_raising() -> N
     assert results["only-one"].kind == "executed"
     assert isinstance(results["missing"], str)
     assert len(ledger) == 1
+
+
+# --- risk_classifier.py --------------------------------------------------
+
+
+def test_risk_classifier_rule_tier_short_circuits_with_no_model_call() -> None:
+    registry, _ledger = build_extended_ops_registry()
+    audit_log = AuditLog()
+    provider = MockProvider([])  # any call would raise MockScriptExhausted
+    decision_source = ScriptedDecisionSource([Decision(kind="approve", reviewer="dana")])
+
+    always_gate_request = ReviewRequest(
+        id="r1", action=ToolCall(id="r1", name="cancel_subscription", arguments={"customer_id": "c-1", "reason": "test"}),
+        context="",
+    )
+    always_outcome = risk_classifier.run_risk_classified_gate(always_gate_request, registry, provider, decision_source, audit_log)
+    assert always_outcome.kind == "executed"
+
+    never_gate_request = ReviewRequest(
+        id="r2", action=ToolCall(id="r2", name="lookup_customer_tier", arguments={"customer_id": "c-2"}), context="",
+    )
+    never_outcome = risk_classifier.run_risk_classified_gate(never_gate_request, registry, provider, decision_source, audit_log)
+
+    assert never_outcome.kind == "executed"
+    assert provider.calls == []  # neither rule route ever consulted the model
+
+
+def test_risk_classifier_judge_gate_routes_to_review_with_reason_in_context() -> None:
+    registry, _ledger = build_extended_ops_registry()
+    audit_log = AuditLog()
+    provider = MockProvider(["GATE: ambiguous amount relative to policy"])
+    decision_source = _RecordingDecisionSource(Decision(kind="approve", reviewer="dana"))
+    action = ToolCall(id="r1", name="send_refund", arguments={"customer_id": "c-1", "amount_usd": 300.0, "reason": "test"})
+    request = ReviewRequest(id="r1", action=action, context="ambiguous case")
+
+    outcome = risk_classifier.run_risk_classified_gate(request, registry, provider, decision_source, audit_log)
+
+    assert outcome.kind == "executed"  # the human, once asked, approved it
+    assert decision_source.received_request is not None
+    assert "risk verdict" in decision_source.received_request.context
+    assert "ambiguous amount relative to policy" in decision_source.received_request.context
+
+
+def test_risk_classifier_judge_auto_executes_with_no_reviewer_consulted() -> None:
+    registry, _ledger = build_extended_ops_registry()
+    audit_log = AuditLog()
+    provider = MockProvider(["AUTO: matches a routine, well-documented refund pattern"])
+    decision_source = ScriptedDecisionSource([])  # would raise if ever consulted
+    action = ToolCall(id="r1", name="send_refund", arguments={"customer_id": "c-1", "amount_usd": 150.0, "reason": "test"})
+    request = ReviewRequest(id="r1", action=action, context="")
+
+    outcome = risk_classifier.run_risk_classified_gate(request, registry, provider, decision_source, audit_log)
+
+    assert outcome.kind == "executed"
+    assert audit_log.records[-1].decision_kind == "auto_approved_by_judge"
+
+
+def test_risk_classifier_unparseable_judge_verdict_fails_closed() -> None:
+    registry, _ledger = build_extended_ops_registry()
+    audit_log = AuditLog()
+    provider = MockProvider(["I am not sure, maybe check with someone?"])
+    decision_source = ScriptedDecisionSource([Decision(kind="reject", reviewer="dana", reason="unclear")])
+    action = ToolCall(id="r1", name="send_refund", arguments={"customer_id": "c-1", "amount_usd": 300.0, "reason": "test"})
+    request = ReviewRequest(id="r1", action=action, context="")
+
+    outcome = risk_classifier.run_risk_classified_gate(request, registry, provider, decision_source, audit_log)
+
+    assert outcome.kind == "rejected"  # gated to the human, not auto-approved
+    assert len(decision_source.decisions_served) == 1
+
+
+def test_risk_classifier_cost_bound_is_two_judge_calls_for_five_actions() -> None:
+    result = risk_classifier.run_risk_classifier_demo()
+    assert result.judge_calls_made == 2
+    assert all(outcome.kind == "executed" for outcome in result.outcomes.values())
+
+
+# --- capacity.py -----------------------------------------------------------
+
+
+def test_capacity_inverted_u_optimal_beats_both_extremes() -> None:
+    result = capacity.run_inverted_u_demo()
+    escalate_nothing = result.curve[-1]
+    escalate_everything = result.curve[0]
+    assert result.optimal.safety > escalate_nothing.safety
+    assert result.optimal.safety > escalate_everything.safety
+
+
+def test_capacity_optimal_threshold_is_interior() -> None:
+    result = capacity.run_inverted_u_demo()
+    assert result.optimal.threshold != result.curve[0].threshold
+    assert result.optimal.threshold != result.curve[-1].threshold
+
+
+def test_capacity_flooding_rubber_stamps_but_optimal_threshold_blocks() -> None:
+    result = capacity.run_flooding_vs_optimal_demo()
+    assert result.blocked_by_escalate_everything is False
+    assert result.blocked_at_optimal_threshold is True
+
+
+def test_capacity_raising_capacity_moves_optimal_threshold_down() -> None:
+    small_capacity_optimal, large_capacity_optimal = capacity.run_capacity_monotonicity_demo(4, 8)
+    assert large_capacity_optimal.threshold < small_capacity_optimal.threshold
+
+
+def test_capacity_sweep_is_deterministic_across_runs() -> None:
+    result_1 = capacity.run_inverted_u_demo()
+    result_2 = capacity.run_inverted_u_demo()
+    assert result_1.curve == result_2.curve
+    assert result_1.optimal == result_2.optimal
+
+
+# --- approval_memory.py -----------------------------------------------------
+
+
+def test_approval_memory_learn_then_auto_with_no_second_consultation() -> None:
+    first, second, ledger = approval_memory.run_learn_then_auto_demo()
+    assert first.kind == "executed"
+    assert second.kind == "executed"
+    assert len(ledger) == 2
+
+
+def test_approval_memory_reject_memory_auto_rejects_with_no_side_effect() -> None:
+    first, second, ledger = approval_memory.run_reject_memory_demo()
+    assert first.kind == "rejected"
+    assert second.kind == "rejected"
+    assert ledger == []
+
+
+def test_approval_memory_confidence_threshold_k_two_consults_twice_then_auto() -> None:
+    outcomes, consultations = approval_memory.run_confidence_threshold_demo()
+    assert len(outcomes) == 3
+    assert all(outcome.kind == "executed" for outcome in outcomes)
+    assert consultations == 2
+
+
+def test_approval_memory_safety_ceiling_still_gates_high_risk_cousin() -> None:
+    cousin_outcome, risky_outcome, consultations = approval_memory.run_safety_ceiling_demo()
+    assert cousin_outcome.kind == "executed"
+    assert consultations == 2  # both the cousin and the high-risk action consulted the human
+    assert risky_outcome.kind in ("executed", "rejected")  # resolved by the human, not by memory
+
+
+def test_approval_memory_load_falls_to_one_consultation_over_ten_repeats() -> None:
+    outcomes, consultations = approval_memory.run_load_falls_demo(stream_size=10)
+    assert len(outcomes) == 10
+    assert all(outcome.kind == "executed" for outcome in outcomes)
+    assert consultations == 1
+
+
+# --- mandatory_oversight.py -------------------------------------------------
+
+
+def test_mandatory_oversight_non_overridable_ignores_permissive_shortcut() -> None:
+    outcome, oversight_log = mandatory_oversight.run_non_overridable_demo()
+    assert outcome.kind == "executed"
+    assert len(oversight_log.records) == 1
+    assert oversight_log.records[0].could_override is True
+    assert oversight_log.records[0].could_stop is True
+
+
+def test_mandatory_oversight_override_is_recorded() -> None:
+    registry, _ledger = build_support_ops_registry()
+    audit_log = AuditLog()
+    oversight_log = mandatory_oversight.OversightLog()
+    request = ReviewRequest(
+        id="req-ov", context="reversing a prior denial",
+        action=ToolCall(id="req-ov", name="send_refund", arguments={
+            "customer_id": "c-1", "amount_usd": 50.0, "reason": "reversing a prior denial after new evidence",
+        }),
+    )
+    decision = Decision(kind="approve", reviewer="dana", reason="new evidence changes the earlier decision")
+
+    outcome = mandatory_oversight.run_override(request, decision, registry, audit_log, oversight_log, clock=counting_clock())
+
+    assert outcome.kind == "executed"
+    assert oversight_log.records[-1].overridden is True
+    assert oversight_log.records[-1].could_override is True
+
+
+def test_mandatory_oversight_stop_path_halts_with_a_safe_state_record() -> None:
+    registry, _ledger = build_support_ops_registry()
+    audit_log = AuditLog()
+    oversight_log = mandatory_oversight.OversightLog()
+    request = ReviewRequest(
+        id="req-stop", context="mid task",
+        action=ToolCall(id="req-stop", name="send_refund", arguments={
+            "customer_id": "c-2", "amount_usd": 50.0, "reason": "test",
+        }),
+    )
+    decision = Decision(kind="stop", reviewer="dana", reason="halting due to fraud suspicion")
+
+    result = mandatory_oversight.run_with_stop_path(request, decision, registry, audit_log, oversight_log, clock=counting_clock())
+
+    assert isinstance(result, mandatory_oversight.SafeStateRecord)
+    assert result.reason == "halting due to fraud suspicion"
+    assert audit_log.records[-1].decision_kind == "stopped_safe_state"
+
+
+def test_mandatory_oversight_two_person_quorum_executes_on_distinct_approvals() -> None:
+    outcome, ledger = mandatory_oversight.run_two_person_demo()
+    assert outcome.kind == "executed"
+    assert len(ledger) == 1
+
+
+def test_mandatory_oversight_veto_blocks_and_same_identity_twice_fails_quorum() -> None:
+    registry, ledger = build_support_ops_registry()
+    audit_log = AuditLog()
+    oversight_log = mandatory_oversight.OversightLog()
+    request = ReviewRequest(
+        id="req-bio", context="verify",
+        action=ToolCall(id="req-bio", name="cancel_subscription", arguments={"customer_id": "c-1", "reason": "test"}),
+    )
+
+    veto_votes = [
+        mandatory_oversight.QuorumVote(reviewer="dana", approve=True),
+        mandatory_oversight.QuorumVote(reviewer="marcus", approve=False, reason="mismatch suspected"),
+    ]
+    with pytest.raises(UnauthorizedDecisionError):
+        mandatory_oversight.run_two_person_gate(request, registry, veto_votes, audit_log, oversight_log)
+    assert ledger == []
+
+    same_identity_votes = [
+        mandatory_oversight.QuorumVote(reviewer="dana", approve=True),
+        mandatory_oversight.QuorumVote(reviewer="dana", approve=True),
+    ]
+    with pytest.raises(UnauthorizedDecisionError):
+        mandatory_oversight.run_two_person_gate(request, registry, same_identity_votes, audit_log, oversight_log)
+    assert ledger == []
+
+
+# --- interrupt.py ------------------------------------------------------------
+
+
+def test_interrupt_never_fires_runs_all_steps_unchanged() -> None:
+    result = interrupt.run_no_interrupt_demo()
+    assert len(result.outcomes) == 3
+    assert result.intervened_before_index is None
+    assert result.aborted is False
+
+
+def test_interrupt_edit_mid_run_replaces_the_tail() -> None:
+    result, ledger = interrupt.run_edit_mid_run_demo()
+    assert len(result.outcomes) == 2  # step 1, then the edited replacement, not the original tail
+    assert ledger[0]["type"] == "cancellation"
+    refund_entry = next(e for e in ledger if e["type"] == "refund")
+    assert refund_entry["amount_usd"] == 22.50  # the corrected amount, not the originally proposed 40.00
+
+
+def test_interrupt_inject_inserts_a_step_before_continuing() -> None:
+    result, ledger = interrupt.run_inject_demo()
+    assert len(result.outcomes) == 4  # cancel, injected lookup, then the original two refund steps
+    assert ledger[0]["type"] == "cancellation"
+    refund_amounts = [e["amount_usd"] for e in ledger if e["type"] == "refund"]
+    assert refund_amounts == [40.00, 5.00]  # both original refund steps still ran, in order
+
+
+def test_interrupt_abort_leaves_the_executed_prefix_and_stops_the_rest() -> None:
+    result, ledger = interrupt.run_abort_demo()
+    assert len(result.outcomes) == 1
+    assert result.aborted is True
+    assert result.stop_reason
+    assert ledger == [{"type": "cancellation", "customer_id": "c-04", "reason": "customer requested cancellation"}]
+
+
+def test_interrupt_malformed_takeover_stops_with_no_further_step_executed() -> None:
+    result, error = interrupt.run_malformed_takeover_demo()
+    assert result is None
+    assert error is not None
+    assert "unrecognized" in error
 
 
 if __name__ == "__main__":

@@ -97,6 +97,59 @@ def build_support_ops_registry() -> tuple[ToolRegistry, list[dict[str, Any]]]:
     return registry, ledger
 
 
+def build_extended_ops_registry() -> tuple[ToolRegistry, list[dict[str, Any]]]:
+    """Build a registry with `send_refund`, `cancel_subscription`, and a read-only lookup tool.
+
+    Delegates to `build_support_ops_registry` and adds `lookup_customer_tier`,
+    a genuine never-gate-by-tool-name example (read-only, no ledger entry)
+    distinct from a merely small-amount refund. Used by the risk-classifier,
+    approval-memory, and mandatory-oversight variants, which each need more
+    than the two mutating tools to show a rule tier or a forced-gate class.
+    """
+    registry, ledger = build_support_ops_registry()
+
+    @registry.tool(
+        description="Look up a customer's loyalty tier. Read-only, no side effect.",
+        parameters={
+            "type": "object",
+            "properties": {"customer_id": {"type": "string"}},
+            "required": ["customer_id"],
+        },
+    )
+    def lookup_customer_tier(customer_id: str) -> str:
+        return f"{customer_id} is Gold tier"
+
+    return registry, ledger
+
+
+def build_biometric_registry() -> tuple[ToolRegistry, list[dict[str, Any]]]:
+    """Build a registry with one biometric identity-match tool.
+
+    Used by the mandatory-oversight variant's two-person-rule demo (EU AI
+    Act Article 14(5)): biometric identification is the named class that
+    must never proceed on a single reviewer's say-so.
+    """
+    ledger: list[dict[str, Any]] = []
+    registry = ToolRegistry()
+
+    @registry.tool(
+        description="Confirm a biometric identification match against a candidate record.",
+        parameters={
+            "type": "object",
+            "properties": {
+                "candidate_id": {"type": "string"},
+                "matched_identity": {"type": "string"},
+            },
+            "required": ["candidate_id", "matched_identity"],
+        },
+    )
+    def confirm_biometric_match(candidate_id: str, matched_identity: str) -> str:
+        ledger.append({"type": "biometric_match", "candidate_id": candidate_id, "matched_identity": matched_identity})
+        return f"biometric match confirmed: {candidate_id} -> {matched_identity}"
+
+    return registry, ledger
+
+
 def build_reversal_registry(ledger: list[dict[str, Any]]) -> ToolRegistry:
     """Build a registry with a `reverse_refund` tool that undoes the last refund.
 
