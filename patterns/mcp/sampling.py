@@ -13,6 +13,15 @@ Two demo runs: one client offers the `sampling` capability and answers the
 request with a scripted `MockProvider` call, showing the round trip
 succeed; the other omits the capability, showing the server's server-side
 capability gate refuse the tool before any sampling request is even sent.
+
+This round trip is the pre-SEP-1577 shape. Revision 2025-11-25, the one
+this pattern targets, extended `sampling/createMessage` with `tools` and
+`toolChoice` fields so a sampling request can itself offer the model tools
+to call, not just plain text generation. That is a field addition to the
+same request, not a new mechanic, so it is not modeled separately here;
+see `elicitation.py` for the primitive this round trip is a special case
+of (asking the client for something mid-call), generalized past
+"run a model" to "get any structured input from the human."
 """
 
 from __future__ import annotations

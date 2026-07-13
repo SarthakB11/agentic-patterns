@@ -12,6 +12,14 @@ notification gets a bare `202`. No sessions, no streaming, no reverse
 direction, so `summarize_note`'s sampling round trip is not reachable over
 this transport (see `server.py`, which returns `isError: true` for it when
 `transport is None`).
+
+One piece of the real Streamable HTTP transport is folded in here despite
+the rest being out of scope: PR #1439 clarified that a Streamable HTTP
+server must return HTTP 403 for a request whose `Origin` header is not one
+the server trusts, a DNS-rebinding defense. `do_POST` below checks it.
+Every other loopback client in this module sends no `Origin` header at all
+and is unaffected; only a request that supplies a non-loopback `Origin` is
+rejected.
 """
 
 from __future__ import annotations
@@ -41,6 +49,12 @@ class _Handler(BaseHTTPRequestHandler):
         pass  # keep the demo transcript free of per-request access logs
 
     def do_POST(self) -> None:  # noqa: N802 - stdlib method name
+        origin = self.headers.get("Origin")
+        if origin is not None and not origin.startswith("http://127.0.0.1") and not origin.startswith("http://localhost"):
+            self.send_response(403)
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+            return
         length = int(self.headers.get("Content-Length", 0))
         raw = self.rfile.read(length)
         try:
@@ -91,14 +105,23 @@ class HTTPClientTransport:
     def next_id(self) -> str:
         return f"http-{next(self._ids)}"
 
-    def post(self, message: dict[str, Any], timeout: float = 5.0) -> dict[str, Any] | None:
-        """POST one JSON-RPC message and return the decoded response, or `None` for a `202`."""
+    def post(self, message: dict[str, Any], timeout: float = 5.0, headers: dict[str, str] | None = None) -> dict[str, Any] | None:
+        """POST one JSON-RPC message and return the decoded response, or `None` for a `202`.
+
+        Args:
+            message: The JSON-RPC request or notification to send.
+            timeout: Seconds to wait for the HTTP response.
+            headers: Extra HTTP headers to send, merged over the default
+                `Content-Type`. Used by tests to exercise the `Origin` check
+                in `_Handler.do_POST`; normal demo traffic sends none.
+        """
         import urllib.request
 
         body = json.dumps(message).encode("utf-8")
-        request = urllib.request.Request(
-            self.base_url, data=body, headers={"Content-Type": "application/json"}, method="POST"
-        )
+        all_headers = {"Content-Type": "application/json"}
+        if headers:
+            all_headers.update(headers)
+        request = urllib.request.Request(self.base_url, data=body, headers=all_headers, method="POST")
         with urllib.request.urlopen(request, timeout=timeout) as resp:  # noqa: S310 - loopback only
             status = resp.status
             raw = resp.read()
