@@ -346,3 +346,39 @@ def test_mock_provider_snapshots_messages_per_call() -> None:
 
     assert len(provider.calls[0]["messages"]) == 1
     assert len(provider.calls[1]["messages"]) == 2
+
+
+def test_completion_and_message_carry_a_reasoning_channel() -> None:
+    """The reasoning channel is opaque text, defaulting to empty."""
+    c = Completion(content="answer", reasoning="I checked the observation first.")
+    assert c.reasoning == "I checked the observation first."
+    m = Message.assistant("answer", reasoning=c.reasoning)
+    assert m.reasoning == c.reasoning
+    assert Message.assistant("plain").reasoning == ""
+
+
+def test_parse_anthropic_response_captures_thinking_blocks() -> None:
+    data = {
+        "content": [
+            {"type": "thinking", "thinking": "The capital question needs one lookup."},
+            {"type": "text", "text": "Paris"},
+        ],
+        "stop_reason": "end_turn",
+    }
+    completion = parse_anthropic_response(data)
+    assert completion.reasoning == "The capital question needs one lookup."
+    assert completion.content == "Paris"
+
+
+def test_parse_openai_response_captures_reasoning_content() -> None:
+    data = {
+        "choices": [
+            {
+                "message": {"content": "Paris", "reasoning_content": "One lookup suffices."},
+                "finish_reason": "stop",
+            }
+        ]
+    }
+    completion = parse_openai_response(data)
+    assert completion.reasoning == "One lookup suffices."
+    assert completion.content == "Paris"

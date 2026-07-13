@@ -181,7 +181,11 @@ _OPENAI_STOP_REASONS = {"stop": "stop", "tool_calls": "tool_use", "length": "len
 
 
 def parse_openai_response(data: dict[str, Any]) -> Completion:
-    """Parse a raw OpenAI chat-completions response into a `Completion`."""
+    """Parse a raw OpenAI chat-completions response into a `Completion`.
+
+    Captures `reasoning_content` when an OpenAI-compatible endpoint (for
+    example a DeepSeek-style reasoner) returns one alongside `content`.
+    """
     choice = data["choices"][0]
     message = choice["message"]
     tool_calls = [
@@ -189,7 +193,13 @@ def parse_openai_response(data: dict[str, Any]) -> Completion:
         for tc in message.get("tool_calls") or []
     ]
     stop_reason = _OPENAI_STOP_REASONS.get(choice.get("finish_reason", "stop"), "stop")
-    return Completion(content=message.get("content") or "", tool_calls=tool_calls, stop_reason=stop_reason, raw=data)
+    return Completion(
+        content=message.get("content") or "",
+        tool_calls=tool_calls,
+        stop_reason=stop_reason,
+        reasoning=message.get("reasoning_content") or "",
+        raw=data,
+    )
 
 
 def to_anthropic_tools(specs: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -254,16 +264,30 @@ _ANTHROPIC_STOP_REASONS = {"end_turn": "stop", "tool_use": "tool_use", "max_toke
 
 
 def parse_anthropic_response(data: dict[str, Any]) -> Completion:
-    """Parse a raw Anthropic Messages API response into a `Completion`."""
+    """Parse a raw Anthropic Messages API response into a `Completion`.
+
+    Thinking blocks are captured into `Completion.reasoning` as opaque
+    text. Their signatures stay in `raw`; re-sending signed blocks on a
+    later turn is a provider-adapter concern this thin client leaves out.
+    """
     content_text = ""
+    reasoning_text = ""
     tool_calls: list[ToolCall] = []
     for block in data.get("content", []):
         if block["type"] == "text":
             content_text += block["text"]
+        elif block["type"] == "thinking":
+            reasoning_text += block.get("thinking", "")
         elif block["type"] == "tool_use":
             tool_calls.append(ToolCall(id=block["id"], name=block["name"], arguments=block.get("input", {})))
     stop_reason = _ANTHROPIC_STOP_REASONS.get(data.get("stop_reason", "end_turn"), "stop")
-    return Completion(content=content_text, tool_calls=tool_calls, stop_reason=stop_reason, raw=data)
+    return Completion(
+        content=content_text,
+        tool_calls=tool_calls,
+        stop_reason=stop_reason,
+        reasoning=reasoning_text,
+        raw=data,
+    )
 
 
 def _require_httpx() -> Any:

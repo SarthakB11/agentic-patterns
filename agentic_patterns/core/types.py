@@ -39,12 +39,20 @@ class Message:
             other roles.
         tool_call_id: For role="tool", the id of the ToolCall this message is
             the result of. None otherwise.
+        reasoning: Opaque reasoning text attached to an assistant turn, the
+            provider-neutral stand-in for a reasoning model's thinking
+            blocks. Loops that support reasoning models carry it forward
+            verbatim and never parse or rewrite it. Real APIs attach
+            signatures to thinking blocks; round-tripping those is a
+            provider-adapter concern, so the wire converters record
+            reasoning on parse but do not emit it.
     """
 
     role: str
     content: str
     tool_calls: list[ToolCall] = field(default_factory=list)
     tool_call_id: str | None = None
+    reasoning: str = ""
 
     @classmethod
     def system(cls, text: str) -> Message:
@@ -57,9 +65,11 @@ class Message:
         return cls(role="user", content=text)
 
     @classmethod
-    def assistant(cls, text: str, tool_calls: list[ToolCall] | None = None) -> Message:
-        """Build an assistant message, optionally carrying tool calls."""
-        return cls(role="assistant", content=text, tool_calls=tool_calls or [])
+    def assistant(
+        cls, text: str, tool_calls: list[ToolCall] | None = None, reasoning: str = ""
+    ) -> Message:
+        """Build an assistant message, optionally carrying tool calls and reasoning."""
+        return cls(role="assistant", content=text, tool_calls=tool_calls or [], reasoning=reasoning)
 
     @classmethod
     def tool(cls, tool_call_id: str, content: str) -> Message:
@@ -76,6 +86,9 @@ class Completion:
             tool calls.
         tool_calls: Tool calls the model requested, if any.
         stop_reason: One of "stop", "tool_use", "length".
+        reasoning: Opaque reasoning text a reasoning model produced before
+            its answer (Anthropic thinking blocks, OpenAI-compatible
+            reasoning_content). Empty for models that do not expose it.
         raw: The raw provider response, kept for debugging. Never relied on
             by pattern code.
     """
@@ -83,4 +96,5 @@ class Completion:
     content: str = ""
     tool_calls: list[ToolCall] = field(default_factory=list)
     stop_reason: str = "stop"
+    reasoning: str = ""
     raw: Any = None
