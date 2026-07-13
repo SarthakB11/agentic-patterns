@@ -7,6 +7,12 @@ the gate does not flap on a change that did not actually regress anything;
 only a drop past the tolerance band fails the gate. This models the CI
 check a real pipeline would run on every change, including the non-zero
 exit code a shell pipeline checks.
+
+This gate is deliberately scoped to the deterministic exact-evaluator suite
+(`regex` and `json_schema`) with one global threshold. A real pipeline
+would also gate judge metrics (mean score, pass rate, an accepted judge's
+verdicts) and gate per slice, using `EvalCase.tags`, so a gain on easy
+cases cannot hide a regression on a hard slice.
 """
 
 from __future__ import annotations

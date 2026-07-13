@@ -11,10 +11,26 @@ import pytest
 
 from agentic_patterns import MockProvider
 
-from patterns.evaluation import aggregate, ensemble, exact, meta, pairwise, pointwise, regression, semantic, trajectory
+from patterns.evaluation import (
+    aggregate,
+    ensemble,
+    exact,
+    leakage,
+    meta,
+    pairwise,
+    pointwise,
+    process_reward,
+    regression,
+    selective,
+    semantic,
+    trajectory,
+    validation_protocol,
+)
 from patterns.evaluation.eval_set import get_case
+from patterns.evaluation.pairwise import PairwiseResult
 from patterns.evaluation.pointwise import build_pointwise_judge, run_checklist_judgment
-from patterns.evaluation.verdict import parse_pairwise_verdict, parse_pointwise_verdict
+from patterns.evaluation.trajectory import TrajectoryStep
+from patterns.evaluation.verdict import PairwiseVerdict, parse_pairwise_verdict, parse_pointwise_verdict
 
 # --- eval_set ----------------------------------------------------------
 
@@ -354,6 +370,166 @@ def test_full_demo_is_deterministic_across_two_runs() -> None:
     assert first_fair.position_bias_detected == second_fair.position_bias_detected
 
     assert meta.run_meta_evaluation_demo() == meta.run_meta_evaluation_demo()
+
+
+# --- validation protocol ---------------------------------------------------
+
+
+def _fake_pairwise_result(*, bias: bool) -> PairwiseResult:
+    verdict = PairwiseVerdict(winner="a", reasoning="", raw="")
+    winner = "tie" if bias else "candidate_a"
+    return PairwiseResult(order_ab=verdict, order_ba=verdict, winner=winner, position_bias_detected=bias)
+
+
+def test_position_bias_rate_two_flip_one_agree() -> None:
+    results = [_fake_pairwise_result(bias=True), _fake_pairwise_result(bias=True), _fake_pairwise_result(bias=False)]
+    assert validation_protocol.position_bias_rate(results) == pytest.approx(2 / 3)
+
+
+def test_validate_judge_accepts_when_all_axes_pass() -> None:
+    result = validation_protocol.validate_judge(kappa=0.6, test_retest=0.97, bias_rate=0.05)
+    assert result.accepted is True
+    assert result.paradox_flag is False
+
+
+def test_validate_judge_paradox_flag_high_retest_high_bias() -> None:
+    result = validation_protocol.validate_judge(kappa=0.6, test_retest=0.97, bias_rate=0.30)
+    assert result.accepted is False
+    assert result.paradox_flag is True
+
+
+def test_validate_judge_rejects_on_each_single_failing_axis() -> None:
+    fails_agreement = validation_protocol.validate_judge(kappa=0.1, test_retest=0.97, bias_rate=0.05)
+    fails_consistency = validation_protocol.validate_judge(kappa=0.6, test_retest=0.50, bias_rate=0.05)
+    fails_bias = validation_protocol.validate_judge(kappa=0.6, test_retest=0.97, bias_rate=0.50)
+    assert fails_agreement.accepted is False and fails_agreement.paradox_flag is False
+    assert fails_consistency.accepted is False and fails_consistency.paradox_flag is False
+    assert fails_bias.accepted is False and fails_bias.paradox_flag is True
+
+
+def test_validation_protocol_demo_deterministic_across_two_runs() -> None:
+    healthy_1, paradox_1 = validation_protocol.run_validation_protocol_demo()
+    healthy_2, paradox_2 = validation_protocol.run_validation_protocol_demo()
+    assert healthy_1 == healthy_2
+    assert paradox_1 == paradox_2
+
+
+# --- selective judging ---------------------------------------------------
+
+
+def test_selective_judgment_high_confidence_answers() -> None:
+    provider = MockProvider(["reasoning\nSCORE: 8\nVERDICT: pass"] * 3)
+    case = get_case("refund_policy")
+    result = selective.run_selective_judgment(provider, case, "some reply", resamples=3, tau=0.67)
+    assert result.confidence == 1.0
+    assert result.answered is True
+    assert result.verdict is not None
+    assert result.verdict.passed is True
+
+
+def test_selective_judgment_low_confidence_abstains() -> None:
+    provider = MockProvider(
+        [
+            "reasoning\nSCORE: 8\nVERDICT: pass",
+            "reasoning\nSCORE: 4\nVERDICT: fail",
+            "reasoning\nSCORE: 3\nVERDICT: fail",
+        ]
+    )
+    case = get_case("refund_policy")
+    result = selective.run_selective_judgment(provider, case, "some reply", resamples=3, tau=0.67)
+    assert result.confidence == pytest.approx(2 / 3)
+    assert result.answered is False
+    assert result.verdict is None
+
+
+def test_selective_demo_coverage_is_two_of_three() -> None:
+    result = selective.run_selective_demo()
+    assert result.coverage == pytest.approx(2 / 3)
+
+
+def test_selective_coverage_reliability_monotonicity() -> None:
+    low_tau, high_tau = selective.run_coverage_tau_curve_demo()
+    assert high_tau.coverage <= low_tau.coverage
+    assert high_tau.selective_agreement >= low_tau.selective_agreement
+
+
+def test_selective_escalation_count_matches_abstained_count() -> None:
+    result = selective.run_selective_demo()
+    assert result.abstained_count == 1
+    assert result.escalated_count == result.abstained_count
+
+
+# --- preference leakage ---------------------------------------------------
+
+
+def test_leakage_same_model_judge_detected() -> None:
+    same_model, _, _ = leakage.run_leakage_demo()
+    assert same_model.leakage_score > 0
+    assert same_model.leakage_detected is True
+
+
+def test_leakage_unrelated_judge_near_zero_not_detected() -> None:
+    _, _, unrelated = leakage.run_leakage_demo()
+    assert unrelated.leakage_score == pytest.approx(0.0)
+    assert unrelated.leakage_detected is False
+
+
+def test_leakage_tier_ordering_same_model_ge_inheritance_ge_unrelated() -> None:
+    same_model, inheritance, unrelated = leakage.run_leakage_demo()
+    assert same_model.leakage_score >= inheritance.leakage_score >= unrelated.leakage_score
+
+
+def test_leakage_mitigation_unrelated_judge_drops_detection_on_same_outputs() -> None:
+    same_model, _, unrelated = leakage.run_leakage_demo()
+    assert same_model.leakage_detected is True
+    assert unrelated.leakage_detected is False
+
+
+def test_leakage_demo_deterministic_across_two_runs() -> None:
+    first = leakage.run_leakage_demo()
+    second = leakage.run_leakage_demo()
+    assert [r.leakage_score for r in first] == [r.leakage_score for r in second]
+
+
+# --- process reward ---------------------------------------------------
+
+
+def test_score_steps_parses_exact_score_vector() -> None:
+    provider = MockProvider(["reasoning\nSCORE: 9", "reasoning\nSCORE: 3", "reasoning\nSCORE: 8"])
+    steps = [TrajectoryStep("a1", "o1"), TrajectoryStep("a2", "o2"), TrajectoryStep("a3", "o3")]
+    scores = process_reward.score_steps(provider, "goal", steps)
+    assert scores == [9.0, 3.0, 8.0]
+
+
+def test_aggregate_step_scores_rules_on_fixed_vector() -> None:
+    scores = [9.0, 3.0, 8.0]
+    min_score = process_reward.aggregate_step_scores(scores, "min")
+    mean_score = process_reward.aggregate_step_scores(scores, "mean")
+    last_score = process_reward.aggregate_step_scores(scores, "last")
+    product_score = process_reward.aggregate_step_scores(scores, "product")
+    assert min_score == 3.0
+    assert mean_score == pytest.approx(20 / 3)
+    assert last_score == 8.0
+    assert product_score < min(min_score, mean_score, last_score)
+
+
+def test_process_reward_min_gates_while_mean_passes() -> None:
+    mean_result, min_result = process_reward.run_process_reward_demo()
+    assert mean_result.passed is True
+    assert min_result.passed is False
+
+
+def test_weakest_step_index_first_minimum_tiebreak() -> None:
+    assert process_reward.weakest_step_index([9.0, 3.0, 8.0]) == 1
+    assert process_reward.weakest_step_index([3.0, 3.0, 8.0]) == 0
+
+
+def test_process_reward_demo_deterministic_across_two_runs() -> None:
+    first_mean, first_min = process_reward.run_process_reward_demo()
+    second_mean, second_min = process_reward.run_process_reward_demo()
+    assert first_mean.step_scores == second_mean.step_scores
+    assert first_mean.aggregate_score == second_mean.aggregate_score
+    assert first_min.aggregate_score == second_min.aggregate_score
 
 
 if __name__ == "__main__":

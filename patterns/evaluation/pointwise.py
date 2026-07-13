@@ -9,7 +9,11 @@ demonstrates three refinements called for in the taxonomy:
 - An instruction-specific checklist judge: instead of one fixed 1-10 scale,
   the judge first derives a short checklist for the specific case, then
   scores each item, which is finer-grained and more auditable
-  (arXiv:2507.17746, "Rubrics as Rewards").
+  (arXiv:2507.17746, "Rubrics as Rewards"). That paper is a training-time
+  RL reward method whose rubric items carry weights (essential versus
+  optional); this checklist scores `passed / total` unweighted, an
+  intentional fidelity simplification. RaR is a training reward being
+  reused here as an eval rubric, not an evaluation paper.
 - A position-swap check for pointwise judging itself. Position bias is
   usually discussed for pairwise setups, but "Am I More Pointwise or
   Pairwise?" (arXiv:2602.02219) found ordering effects inside rubric-based

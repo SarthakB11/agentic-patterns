@@ -31,6 +31,21 @@ flowchart TD
     M -->|no| O[Regression gate: fail, exit 1]
 ```
 
+A judge is not trusted just because it produced a verdict. Before a judge's verdicts feed the flow above, `validation_protocol.py` measures it on three independent axes and only accepts it if all three pass:
+
+```mermaid
+flowchart TD
+    P[Judge under test] --> Q[Swapped-order comparisons -> position_bias_rate]
+    P --> R[Judge vs human-labeled slice -> cohens_kappa]
+    P --> S[Judge run twice -> test_retest_rate]
+    Q --> T{validate_judge: all three axes pass?}
+    R --> T
+    S --> T
+    T -->|yes| U[Accepted]
+    T -->|consistency_ok but not bias_ok| V[Rejected: consistency-bias paradox]
+    T -->|any other axis fails| W[Rejected]
+```
+
 ## Variants implemented
 
 - `eval_set.py`: the eval set as versioned data, five cases spanning exact-checkable and open-ended tasks for one running scenario, a subscription-product support bot.
@@ -44,6 +59,10 @@ flowchart TD
 - `aggregate.py`: pure metrics functions, mean score, pass rate, pairwise win rate, and an Elo-style ranking rolled up from pairwise verdicts (the same idea behind the LMSYS Chatbot Arena leaderboard, using an Elo update rather than a full Bradley-Terry fit for simplicity).
 - `regression.py`: a regression gate comparing a run's aggregate metric to a stored baseline within a tolerance band, with the non-zero CI exit code a real pipeline would check.
 - `meta.py`: meta-evaluation, Cohen's kappa for chance-corrected judge-vs-human agreement, and a test-retest same-verdict rate for judge stability across repeated runs.
+- `validation_protocol.py`: the Minimum Viable Validation protocol, a third axis (position bias, via swapped-order comparisons) alongside `meta.py`'s kappa and test-retest, and a joint accept/reject decision that names the consistency-bias paradox, high stability with severe bias, still rejected.
+- `selective.py`: calibrated selective judging, a judge resamples itself to estimate confidence per case, abstains below a threshold, and escalates abstained cases, trading coverage for reliability along a measurable curve.
+- `leakage.py`: preference leakage measured, not just named, the win-rate gap a judge gives a related generator's output over an unrelated one on equal-quality work, across three relatedness tiers, collapsing once the judge is unrelated.
+- `process_reward.py`: step-level process reward as a trajectory evaluator, scoring each step independently and aggregating under `min`/`product`/`mean`/`last`, localizing the weakest step instead of one holistic verdict.
 
 Not implemented: a full Bradley-Terry maximum-likelihood ranking. `aggregate.py` uses an Elo update instead, which serves the same purpose (turning pairwise verdicts into one global ranking) with far less code, at the cost of being order-sensitive to the sequence of matches, a fine tradeoff for a teaching example.
 
@@ -68,7 +87,17 @@ biased comparison: winner=tie position_bias_detected=True
 === 9. Regression gate ===
 candidate run: metric=1.00 baseline=1.00 passed=True exit_code=0
 regressed run: metric=0.50 baseline=1.00 passed=False exit_code=1
-All ten sections completed without exhausting their scripts.
+...
+=== 11. Judge validation protocol (agreement, consistency, bias) ===
+healthy judge:  kappa=0.6 test_retest=0.97 bias_rate=0.05 accepted=True paradox=False
+paradox judge:  kappa=0.6 test_retest=0.97 bias_rate=0.67 accepted=False paradox=True
+...
+=== 13. Preference leakage (contamination, not just named) ===
+same_model  leakage_score=1.00 detected=True
+inheritance leakage_score=0.67 detected=True
+unrelated   leakage_score=0.00 detected=False
+...
+All fourteen sections completed without exhausting their scripts.
 ```
 
 ## Real providers
@@ -81,5 +110,11 @@ Set `AGENTIC_PATTERNS_PROVIDER=openai` (with `OPENAI_API_KEY` set) or `AGENTIC_P
 - Liu et al., "G-Eval: NLG Evaluation using GPT-4 with Better Human Alignment," EMNLP 2023. arXiv:2303.16634.
 - Zheng et al., "Judging LLM-as-a-Judge with MT-Bench and Chatbot Arena," NeurIPS 2023. arXiv:2306.05685.
 - "A Survey on LLM-as-a-Judge," arXiv:2411.15594.
-- Krumdick et al., "Reliability without Validity," arXiv:2606.19544: the consistency-bias paradox, kappa-deflation versus raw agreement, and temperature-dependent same-verdict rates.
+- Justin D. Norman, Michael U. Rivera, D. Alex Hughes, "Reliability without Validity: A Systematic, Large-Scale Evaluation of LLM-as-a-Judge Models Across Agreement, Consistency, and Bias," 2026. arXiv:2606.19544 (~541,000 judgments, 21 judges; consistency-bias paradox: test-retest >0.95 with position bias >0.10; Minimum Viable Validation protocol over agreement, consistency, bias; `validation_protocol.py`).
 - Zhuge et al., "Agent-as-a-Judge," arXiv:2410.10934: whole-trajectory grading against final-answer-only judging.
+- Hunter Lightman, Vineet Kosaraju, Yura Burda, Harri Edwards, Bowen Baker, Teddy Lee, Jan Leike, John Schulman, Ilya Sutskever, Karl Cobbe, "Let's Verify Step by Step," May 2023. arXiv:2305.20050 (process supervision, step-level scoring, PRM800K; `process_reward.py`).
+- Jaehun Jung, Faeze Brahman, Yejin Choi, "Trust or Escalate: LLM Judges with Provable Guarantees for Human Agreement," July 2024. arXiv:2407.18370 (selective evaluation, Simulated Annotators for confidence, cascaded escalation, provable human-agreement level; `selective.py`).
+- Dawei Li, Renliang Sun, Yue Huang, Ming Zhong, Bohan Jiang, Jiawei Han, Xiangliang Zhang, Wei Wang, Huan Liu, "Preference Leakage: A Contamination Problem in LLM-as-a-judge," February 2025 (v3 March 2026). arXiv:2502.01534 (leakage score as related-minus-unrelated win-rate gap; same-model, inheritance, same-family tiers; `leakage.py`).
+- Zhu et al., "Where LLM Agents Fail and How They can Learn From Failures," September 2025. arXiv:2509.25370 (root-cause step attribution; motivates `process_reward.py`'s weak-step localization).
+- Gunjal et al., "Rubrics as Rewards," arXiv:2507.17746 (weighted rubric scoring, a training-time RL reward method; `pointwise.py`'s checklist judge borrows the rubric idea and drops the weighting, noted in its docstring).
+- "Am I More Pointwise or Pairwise?", arXiv:2602.02219 (position bias inside pointwise judging; `pointwise.py`'s order-check demo).

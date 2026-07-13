@@ -27,6 +27,15 @@ API key:
    baseline, with the CI exit code each would produce.
 10. Meta-evaluation: judge-vs-human agreement (Cohen's kappa) and a
     test-retest same-verdict rate.
+11. Judge validation protocol: position bias as a third axis alongside
+    kappa and test-retest, and the joint accept/reject decision, including
+    the consistency-bias paradox (high stability, still rejected).
+12. Selective judging: confidence-calibrated abstention and escalation,
+    plus the coverage-versus-agreement tradeoff across two tau thresholds.
+13. Preference leakage: a measured win-rate gap toward a related generator
+    across three relatedness tiers, collapsing once the judge is unrelated.
+14. Process reward: step-level trajectory scoring, contrasting `mean`
+    (passes) against `min` (fails) on the same unsupported middle step.
 
 Run it from the repository root:
 
@@ -40,7 +49,21 @@ function builds its provider through `agentic_patterns.get_provider`.
 
 from __future__ import annotations
 
-from patterns.evaluation import aggregate, ensemble, exact, meta, pairwise, pointwise, regression, semantic, trajectory
+from patterns.evaluation import (
+    aggregate,
+    ensemble,
+    exact,
+    leakage,
+    meta,
+    pairwise,
+    pointwise,
+    process_reward,
+    regression,
+    selective,
+    semantic,
+    trajectory,
+    validation_protocol,
+)
 from patterns.evaluation.eval_set import EVAL_SET, EVAL_SET_VERSION, get_case
 
 
@@ -58,8 +81,12 @@ def main() -> None:
     _section_aggregate()
     _section_regression()
     _section_meta()
+    _section_validation_protocol()
+    _section_selective()
+    _section_leakage()
+    _section_process_reward()
 
-    print("All ten sections completed without exhausting their scripts.")
+    print("All fourteen sections completed without exhausting their scripts.")
 
 
 def _section_eval_set() -> None:
@@ -193,6 +220,61 @@ def _section_meta() -> None:
     print(f"Cohen's kappa (judge vs human, 5 labeled cases): {kappa:.3f}")
     retest_rate = meta.run_test_retest_demo()
     print(f"test-retest same-verdict rate (3 cases, run twice): {retest_rate:.2f}")
+    print()
+
+
+def _section_validation_protocol() -> None:
+    print("=== 11. Judge validation protocol (agreement, consistency, bias) ===")
+    healthy, paradox = validation_protocol.run_validation_protocol_demo()
+    print(
+        f"healthy judge:  kappa={healthy.kappa} test_retest={healthy.test_retest} "
+        f"bias_rate={healthy.bias_rate} accepted={healthy.accepted} paradox={healthy.paradox_flag}"
+    )
+    print(
+        f"paradox judge:  kappa={paradox.kappa} test_retest={paradox.test_retest} "
+        f"bias_rate={paradox.bias_rate:.2f} accepted={paradox.accepted} paradox={paradox.paradox_flag}"
+    )
+    print("  -> high test-retest alone does not license trust: the paradox judge is rejected on bias")
+    assert healthy.accepted and not paradox.accepted and paradox.paradox_flag
+    print()
+
+
+def _section_selective() -> None:
+    print("=== 12. Selective judging (confidence, abstention, escalation) ===")
+    result = selective.run_selective_demo()
+    print(
+        f"coverage={result.coverage:.2f} abstained={result.abstained_count} "
+        f"escalated={result.escalated_count}"
+    )
+    low, high = selective.run_coverage_tau_curve_demo()
+    print(
+        f"tau=0.5: coverage={low.coverage:.2f} selective_agreement={low.selective_agreement:.2f}  "
+        f"tau=0.7: coverage={high.coverage:.2f} selective_agreement={high.selective_agreement:.2f}"
+    )
+    print("  -> raising tau trades coverage for agreement, never the other way")
+    assert high.coverage <= low.coverage and high.selective_agreement >= low.selective_agreement
+    print()
+
+
+def _section_leakage() -> None:
+    print("=== 13. Preference leakage (contamination, not just named) ===")
+    same_model, inheritance, unrelated = leakage.run_leakage_demo()
+    for result in (same_model, inheritance, unrelated):
+        print(f"{result.tier:<11} leakage_score={result.leakage_score:.2f} detected={result.leakage_detected}")
+    print("  -> swapping in an unrelated judge collapses the score, the mitigation ensemble.py recommends")
+    assert same_model.leakage_score >= inheritance.leakage_score >= unrelated.leakage_score
+    assert same_model.leakage_detected and not unrelated.leakage_detected
+    print()
+
+
+def _section_process_reward() -> None:
+    print("=== 14. Process reward (step-level scoring, aggregation rules) ===")
+    mean_result, min_result = process_reward.run_process_reward_demo()
+    print(f"step scores: {mean_result.step_scores}  weak_step_index={mean_result.weak_step_index}")
+    print(f"mean aggregation: score={mean_result.aggregate_score:.2f} passed={mean_result.passed}")
+    print(f"min aggregation:  score={min_result.aggregate_score:.2f} passed={min_result.passed}")
+    print("  -> min-aggregation catches the confidently-wrong middle step that mean washes out")
+    assert mean_result.passed and not min_result.passed
     print()
 
 

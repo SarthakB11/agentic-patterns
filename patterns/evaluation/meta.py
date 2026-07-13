@@ -6,10 +6,19 @@ rather than raw exact-match agreement: "Reliability without Validity"
 (arXiv:2606.19544) found kappa runs 33 to 41 points below raw agreement on
 MT-Bench, so a raw-agreement number like the frequently-cited "~80%
 judge-human agreement" overstates how much the judge is actually adding
-past chance. The same study found same-verdict rates for one judge asked
-the same question twice fall from above 95% at temperature 0 to near 70% at
-temperature 1, motivating the test-retest check here as a first-class
-metric alongside kappa, not an afterthought.
+past chance. Separately, Stureborg, Alikaniotis, and Suhara (arXiv:2405.01724)
+found same-verdict rates for one judge asked the same question twice fall
+from above 95% at temperature 0 to near 70% at temperature 1 (a finding
+Norman et al. cite; their own protocol fixed judge temperature at 0),
+motivating the test-retest check here as a first-class metric alongside
+kappa, not an afterthought.
+
+Kappa and test-retest are two of the paper's three validation axes, not a
+sufficient judge validation on their own: a judge can hold excellent
+test-retest reliability while carrying severe position bias, the study's
+named consistency-bias paradox. See `validation_protocol.py` for the third
+axis (position bias) and the joint accept/reject decision that requires all
+three axes to pass at once.
 """
 
 from __future__ import annotations

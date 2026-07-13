@@ -8,7 +8,9 @@ grading itself, since a judge favors outputs from any generator it is
 related to by shared weights or lineage, not only its own literal output
 ("Preference Leakage," arXiv:2502.01534). This module does not simulate
 that failure mode; it demonstrates the mitigation, independent judges voting,
-that the separation rule motivates.
+that the separation rule motivates. `leakage.py` measures the failure this
+mitigation guards against directly: a preference-leakage score, and shows
+substituting an unrelated judge collapses it.
 """
 
 from __future__ import annotations
