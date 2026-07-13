@@ -22,3 +22,7 @@ htmlcov/
 .idea/
 .vscode/
 *.swp
+
+# Internal research notes, never published
+docs/research/
+
