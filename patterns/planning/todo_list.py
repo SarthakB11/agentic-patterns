@@ -177,7 +177,7 @@ def demo() -> None:
     registry = build_travel_registry()
 
     print("=== Todo-list in-context planning ===")
-    print(f"Goal: {goal}\n")
+    print(f"Goal: {goal}")
     run = run_todo_list(provider, goal, registry)
     for message in run.transcript:
         if message.role == "assistant" and message.tool_calls:
@@ -186,10 +186,10 @@ def demo() -> None:
                     print("  [plan updated]")
                 else:
                     print(f"  [call] {call.name}({call.arguments})")
-        elif message.role == "tool":
+        elif message.role == "tool" and not message.content.startswith(("[ ]", "[~]", "[x]")):
             print(f"  [observation] {message.content}")
-    print(f"\nFinal todo list:\n{run.state.render()}")
-    print(f"\nFinal answer: {run.final_answer}")
+    print(f"Final todo list:\n{run.state.render()}")
+    print(f"Final answer: {run.final_answer}")
     print(f"Total model calls: {run.model_calls}")
 
 

@@ -74,8 +74,8 @@ def demo() -> None:
     print("=== Plan-and-Solve (PS+) ===")
     print(f"Question: {question}")
     run = run_plan_and_solve(provider, question, plus=True)
-    print(f"\nModel response (plan and solution in one generation):\n{run.response}")
-    print("\nNote: no tool registry, no executor, no validation; a single")
+    print(f"Model response (plan and solution in one generation):\n{run.response}")
+    print("Note: no tool registry, no executor, no validation; a single")
     print("completion is both the plan and the execution.")
 
 

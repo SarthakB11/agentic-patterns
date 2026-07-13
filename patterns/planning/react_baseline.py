@@ -82,7 +82,7 @@ def demo() -> None:
     registry = build_travel_registry()
 
     print("=== ReAct baseline (interleaved, no upfront plan) ===")
-    print(f"Goal: {goal}\n")
+    print(f"Goal: {goal}")
     run = run_react(provider, goal, registry)
     for message in run.transcript:
         if message.role == "assistant" and message.tool_calls:
@@ -90,8 +90,8 @@ def demo() -> None:
                 print(f"  [call] {call.name}({call.arguments})")
         elif message.role == "tool":
             print(f"  [observation] {message.content}")
-    print(f"\nFinal answer: {run.final_answer}")
-    print(f"\nTotal model calls: {run.model_calls} (one per step, unlike ReWOO's fixed 2)")
+    print(f"Final answer: {run.final_answer}")
+    print(f"Total model calls: {run.model_calls} (one per step, unlike ReWOO's fixed 2)")
 
 
 if __name__ == "__main__":

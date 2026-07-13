@@ -5,7 +5,11 @@ Unlike the sequential executor, this treats the plan as a graph rather than
 a list: a step whose dependencies are all satisfied can run as soon as its
 wave starts, at the same time as any other step in that wave. This is the
 shape behind LLMCompiler's task-fetching unit, which dispatches ready tasks
-and substitutes resolved variables into the ones still waiting.
+and substitutes resolved variables into the ones still waiting. It is the
+dispatch-and-substitute half only: this module parallelizes exactly the
+dependencies the planner declared itself, with no dependency inference from
+a flat plan and no speculative or eager execution ahead of a wave. A reader
+should not assume this is the full compiler.
 """
 
 from __future__ import annotations
@@ -101,15 +105,15 @@ def demo() -> None:
     registry = build_travel_registry()
 
     print("=== DAG executor (parallel dispatch within each wave) ===")
-    print(f"Goal: {goal}\n")
+    print(f"Goal: {goal}")
     run = run_dag(provider, goal, registry)
     for i, wave in enumerate(run.waves, start=1):
         print(f"Wave {i} (dispatched together): {wave}")
-    print("\nResults:")
+    print("Results:")
     for step_id, result in run.results.items():
         print(f"  {step_id} -> {result.output}")
     print(
-        "\nNote: 'weather', 'attractions', and 'hotel' have no dependencies and "
+        "Note: 'weather', 'attractions', and 'hotel' have no dependencies and "
         "all ran in wave 1 on their own threads; 'itinerary' waited for both of "
         "its dependencies before wave 2 started."
     )

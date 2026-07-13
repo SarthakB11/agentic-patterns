@@ -3,8 +3,14 @@
 Three checks run, in order: every step's tool name is registered, every
 dependency id refers to a real step in the same plan, and the dependency
 graph is acyclic. Validation happens after parsing and before execution so a
-malformed or unsafe plan is rejected up front, instead of failing mid-run or
-running a tool call the plan never should have been allowed to make.
+malformed plan is rejected up front, instead of failing mid-run.
+
+This is structure only, not domain semantics: a plan that books a hotel
+before pricing it, or drafts an itinerary before checking the weather,
+passes this validator today, because neither is a structural fact about
+tool names, dependency ids, or cycles. `modulo_loop.py` adds that second,
+semantic layer, a suite of sound domain-specific verifiers run after this
+one passes.
 """
 
 from __future__ import annotations

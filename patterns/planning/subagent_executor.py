@@ -146,14 +146,14 @@ def demo() -> None:
         return get_provider(script=child_scripts[step.id])
 
     print("=== Subagent-per-subtask execution ===")
-    print(f"Goal: {goal}\n")
+    print(f"Goal: {goal}")
     run = run_with_subagents(parent_provider, goal, registry, subagent_provider_for)
     for report in run.reports:
         print(
             f"  {report.step_id}: child used {report.child_message_count} messages, "
             f"reported back -> {report.result.output}"
         )
-    print(f"\nParent's own context ({len(run.parent_context)} compact entries, never the child turns):")
+    print(f"Parent's own context ({len(run.parent_context)} compact entries, never the child turns):")
     for entry in run.parent_context:
         print(f"  {entry}")
 

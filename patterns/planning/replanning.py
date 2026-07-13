@@ -10,6 +10,14 @@ replanner sees the goal, what has completed so far, and the problem, then
 returns a JSON plan for the remaining work. Replanning is capped: after
 `max_replans` revisions the run stops and raises rather than looping forever
 against a step that will never succeed.
+
+This is the replan-from-scratch baseline: `remaining = list(revision.steps)`
+below throws away every step still queued, in flat list order, whether or
+not a given queued step ever depended on the failure. `plan_repair.py` is
+the localized upgrade: instead of discarding the whole remaining list, it
+computes the failing step's blast radius in the dependency graph and
+repairs only that, leaving an independent queued step untouched. See that
+module's tests for a direct, counted comparison on the same failure.
 """
 
 from __future__ import annotations
@@ -62,6 +70,10 @@ def _invalidates(output: str) -> bool:
     A real system would run a model or rule check over the observation; this
     stands in with one explicit signal so the trigger is easy to follow and
     to test: a storm warning invalidates an outdoor-attraction itinerary.
+    `premortem.py` is the principled version of this same signal: it predicts
+    the observation and catches the storm in simulation, before the real
+    tool call and its side effect, instead of matching a substring on a real
+    observation after the fact.
     """
     return "storm warning" in output.lower()
 
@@ -139,13 +151,13 @@ def demo() -> None:
     registry = build_travel_registry()
 
     print("=== Plan-then-execute with replanning ===")
-    print(f"Goal: {goal}\n")
+    print(f"Goal: {goal}")
     run = run_with_replanning(provider, goal, registry)
     print(f"Replans used: {run.replans}")
     for result in run.results:
         print(f"  {result.step_id} -> {result.output}")
     print(
-        "\nNote: Paris had no rooms, so book_hotel raised, the executor caught it "
+        "Note: Paris had no rooms, so book_hotel raised, the executor caught it "
         "as an ERROR: observation, and the replanner substituted Lyon."
     )
 

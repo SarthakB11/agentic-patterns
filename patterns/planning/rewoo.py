@@ -96,16 +96,16 @@ def demo() -> None:
     registry = build_travel_registry()
 
     print("=== ReWOO (planner, workers, solver) ===")
-    print(f"Goal: {goal}\n")
+    print(f"Goal: {goal}")
     run = run_rewoo(provider, goal, registry)
     print("Blueprint:")
     for step in run.plan.steps:
         print(f"  {step.id}: {step.tool}({step.args})")
-    print("\nEvidence gathered by workers (no model calls):")
+    print("Evidence gathered by workers (no model calls):")
     for result in run.evidence:
         print(f"  {result.step_id} = {result.output}")
-    print(f"\nSolver's final answer: {run.final_answer}")
-    print(f"\nTotal model calls: {run.model_calls} (independent of the {len(run.plan.steps)} tool calls)")
+    print(f"Solver's final answer: {run.final_answer}")
+    print(f"Total model calls: {run.model_calls} (independent of the {len(run.plan.steps)} tool calls)")
 
 
 if __name__ == "__main__":

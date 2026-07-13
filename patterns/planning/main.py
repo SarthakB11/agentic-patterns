@@ -8,11 +8,16 @@ package, in an order that builds from the simplest to the most structured:
 2. Classic plan-then-execute: a separate planner call, then a sequential executor.
 3. DAG executor: a dependency graph, executed wave by wave with concurrent dispatch.
 4. Replanning: a step fails, the replanner revises the remaining steps, capped.
-5. ReWOO: planner writes a full blueprint, workers gather evidence, solver answers.
-6. ReAct baseline: the interleaved contrast, one model call per step.
-7. Todo-list in-context planning: a self-rewritten plan held in agent state.
-8. Context offload: checkpoint the plan and outputs to disk, resume after a restart.
-9. Subagent-per-subtask: delegate each step to an isolated child conversation.
+5. Plan repair: localized blast-radius surgery instead of replanning from scratch.
+6. LLM-Modulo: verify a plan against sound checkers, back-prompt, regenerate.
+7. ReWOO: planner writes a full blueprint, workers gather evidence, solver answers.
+8. ReAct baseline: the interleaved contrast, one model call per step.
+9. Todo-list in-context planning: a self-rewritten plan held in agent state.
+10. Hierarchical decomposition: expand a compound step into a sub-plan on demand.
+11. Plan selection: generate several candidate plans, score them, execute the best.
+12. Premortem: simulate a plan against tracked state before any real tool runs.
+13. Context offload: checkpoint the plan and outputs to disk, resume after a restart.
+14. Subagent-per-subtask: delegate each step to an isolated child conversation.
 
 Every variant runs offline against `MockProvider` with a scripted, coherent
 conversation; no network call and no API key are needed. Run it with:
@@ -29,7 +34,12 @@ from __future__ import annotations
 from patterns.planning import (
     context_offload,
     dag_executor,
+    hierarchical,
+    modulo_loop,
     plan_and_solve,
+    plan_repair,
+    plan_selection,
+    premortem,
     replanning,
     react_baseline,
     rewoo,
@@ -43,9 +53,14 @@ _SECTIONS = (
     sequential_executor,
     dag_executor,
     replanning,
+    plan_repair,
+    modulo_loop,
     rewoo,
     react_baseline,
     todo_list,
+    hierarchical,
+    plan_selection,
+    premortem,
     context_offload,
     subagent_executor,
 )

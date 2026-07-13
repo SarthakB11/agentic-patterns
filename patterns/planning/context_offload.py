@@ -123,7 +123,7 @@ def demo() -> None:
         state_path = Path(tmp) / "plan_state.json"
 
         print("=== Context offload (checkpoint, simulated restart, resume) ===")
-        print(f"Goal: {goal}\n")
+        print(f"Goal: {goal}")
 
         print("--- Before the crash: planner runs, step 1 completes and is checkpointed ---")
         plan = Plan(

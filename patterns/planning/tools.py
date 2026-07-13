@@ -31,6 +31,15 @@ _HOTEL_RATE_PER_NIGHT = {"paris": 210, "lisbon": 140, "lyon": 150}
 _HOTEL_SOLD_OUT = {"paris"}
 
 
+def hotel_rate_per_night(city: str) -> int:
+    """Return the nightly hotel rate used to price a stay in `city`.
+
+    Exposed so a verifier (`modulo_loop.py`, `premortem.py`) can price a
+    candidate `book_hotel` step without calling the tool itself.
+    """
+    return _HOTEL_RATE_PER_NIGHT.get(city.lower(), 160)
+
+
 def get_weather(city: str) -> str:
     """Return the forecast for `city`, or a generic mild forecast if unknown."""
     return _WEATHER.get(city.lower(), "Mild, high of 20C, no rain expected")

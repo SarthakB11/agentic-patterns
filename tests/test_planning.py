@@ -18,9 +18,14 @@ from agentic_patterns import MockProvider, Tool, ToolRegistry
 
 from patterns.planning.context_offload import load_state, run_with_offload, save_state
 from patterns.planning.dag_executor import run_dag
+from patterns.planning.hierarchical import run_hierarchical
+from patterns.planning.modulo_loop import run_modulo_loop, run_verifiers
 from patterns.planning.parser import PlanParseError, parse_plan
 from patterns.planning.plan import Plan, Step, StepResult, substitute_args, topological_waves
 from patterns.planning.plan_and_solve import run_plan_and_solve
+from patterns.planning.plan_repair import RepairBudgetExceeded, compute_blast_radius, run_plan_repair
+from patterns.planning.plan_selection import run_plan_selection, run_plan_selection_tournament
+from patterns.planning.premortem import run_premortem, simulate_plan
 from patterns.planning.react_baseline import run_react
 from patterns.planning.replanning import ReplanBudgetExceeded, run_with_replanning
 from patterns.planning.rewoo import run_rewoo
@@ -573,3 +578,443 @@ def test_topological_waves_orders_a_diamond_dependency() -> None:
     assert [s.id for s in waves[0]] == ["a"]
     assert [s.id for s in waves[1]] == ["b"]
     assert [s.id for s in waves[2]] == ["c"]
+
+
+# --- Plan repair (localized blast-radius surgery) --------------------------
+
+
+def test_plan_repair_preserves_an_independent_branch_untouched() -> None:
+    registry = build_travel_registry()
+    plan_json = (
+        '[{"id": "A", "tool": "get_weather", "args": {"city": "Paris"}, "depends_on": []},'
+        ' {"id": "B", "tool": "book_hotel", "args": {"city": "Paris", "nights": 2}, "depends_on": []},'
+        ' {"id": "C", "tool": "draft_itinerary",'
+        '  "args": {"weather": "$A", "attractions": "Hotel: $B"}, "depends_on": ["B"]}]'
+    )
+    assert compute_blast_radius(parse_plan("g", plan_json), "B") == {"B", "C"}
+
+    repair_json = (
+        '[{"id": "B", "tool": "book_hotel", "args": {"city": "Lyon", "nights": 2}, "depends_on": []},'
+        ' {"id": "C", "tool": "draft_itinerary",'
+        '  "args": {"weather": "$A", "attractions": "Hotel: $B"}, "depends_on": ["B"]}]'
+    )
+    provider = MockProvider([plan_json, repair_json])
+    run = run_plan_repair(provider, "plan Paris", registry)
+
+    assert run.preserved_ids == {"A"}
+    assert run.repaired_ids == {"B", "C"}
+    assert run.results["A"].output.startswith("Mild and cloudy")
+    assert "Lyon" in run.results["B"].output
+
+
+def test_plan_repair_blast_radius_follows_a_dependency_chain() -> None:
+    registry = build_travel_registry()
+    plan_json = (
+        '[{"id": "A", "tool": "get_weather", "args": {"city": "Paris"}, "depends_on": []},'
+        ' {"id": "B", "tool": "book_hotel", "args": {"city": "Paris", "nights": 1}, "depends_on": []},'
+        ' {"id": "C", "tool": "draft_itinerary",'
+        '  "args": {"weather": "$A", "attractions": "Hotel: $B"}, "depends_on": ["B"]},'
+        ' {"id": "D", "tool": "draft_itinerary",'
+        '  "args": {"weather": "$A", "attractions": "Summary: $C"}, "depends_on": ["C"]}]'
+    )
+    plan = parse_plan("g", plan_json)
+    assert compute_blast_radius(plan, "B") == {"B", "C", "D"}
+
+    repair_json = (
+        '[{"id": "B", "tool": "book_hotel", "args": {"city": "Lyon", "nights": 1}, "depends_on": []},'
+        ' {"id": "C", "tool": "draft_itinerary",'
+        '  "args": {"weather": "$A", "attractions": "Hotel: $B"}, "depends_on": ["B"]},'
+        ' {"id": "D", "tool": "draft_itinerary",'
+        '  "args": {"weather": "$A", "attractions": "Summary: $C"}, "depends_on": ["C"]}]'
+    )
+    run = run_plan_repair(MockProvider([plan_json, repair_json]), "g", registry)
+    assert run.preserved_ids == {"A"}
+    assert run.repaired_ids == {"B", "C", "D"}
+
+
+def test_plan_repair_reexecutes_strictly_fewer_steps_than_replan_from_scratch() -> None:
+    registry = build_travel_registry()
+    # B fails; D is independent of B but listed alongside it.
+    plan_json = (
+        '[{"id": "B", "tool": "book_hotel", "args": {"city": "Paris", "nights": 1}, "depends_on": []},'
+        ' {"id": "D", "tool": "get_weather", "args": {"city": "Lyon"}, "depends_on": []}]'
+    )
+
+    repair_fix_json = '[{"id": "B", "tool": "book_hotel", "args": {"city": "Lyon", "nights": 1}, "depends_on": []}]'
+    repair_run = run_plan_repair(MockProvider([plan_json, repair_fix_json]), "book a room", registry)
+    assert repair_run.repaired_ids == {"B"}
+
+    # replanning.py's flat "remaining" sweeps D up too, even though D never depended on B.
+    replan_revision_json = (
+        '[{"id": "B2", "tool": "book_hotel", "args": {"city": "Lyon", "nights": 1}, "depends_on": []},'
+        ' {"id": "D2", "tool": "get_weather", "args": {"city": "Lyon"}, "depends_on": []}]'
+    )
+    replan_run = run_with_replanning(MockProvider([plan_json, replan_revision_json]), "book a room", registry)
+
+    assert len(repair_run.repaired_ids) == 1
+    assert len(replan_run.results) == 2
+    assert len(repair_run.repaired_ids) < len(replan_run.results)
+
+
+def test_plan_repair_cap_halts_a_step_that_always_fails() -> None:
+    def always_fail() -> str:
+        raise RuntimeError("permanently broken")
+
+    registry = ToolRegistry()
+    registry.register(
+        Tool(name="always_fail", description="d", parameters={"type": "object", "properties": {}}, fn=always_fail)
+    )
+    plan_json = '[{"id": "s1", "tool": "always_fail", "args": {}, "depends_on": []}]'
+    repair_json = '[{"id": "s1", "tool": "always_fail", "args": {}, "depends_on": []}]'
+    provider = MockProvider([plan_json, repair_json])
+
+    with pytest.raises(RepairBudgetExceeded):
+        run_plan_repair(provider, "goal", registry, max_repairs=1)
+
+    assert len(provider.calls) == 2  # the planner call plus exactly one repair call
+
+
+def test_plan_repair_is_deterministic_across_runs() -> None:
+    registry = build_travel_registry()
+    plan_json = (
+        '[{"id": "A", "tool": "get_weather", "args": {"city": "Paris"}, "depends_on": []},'
+        ' {"id": "B", "tool": "book_hotel", "args": {"city": "Paris", "nights": 2}, "depends_on": []}]'
+    )
+    repair_json = '[{"id": "B", "tool": "book_hotel", "args": {"city": "Lyon", "nights": 2}, "depends_on": []}]'
+
+    run1 = run_plan_repair(MockProvider([plan_json, repair_json]), "goal", registry)
+    run2 = run_plan_repair(MockProvider([plan_json, repair_json]), "goal", registry)
+
+    assert run1.preserved_ids == run2.preserved_ids == {"A"}
+    assert run1.repaired_ids == run2.repaired_ids == {"B"}
+    assert {k: v.output for k, v in run1.results.items()} == {k: v.output for k, v in run2.results.items()}
+
+
+# --- LLM-Modulo (verify, back-prompt, regenerate) ---------------------------
+
+
+def test_modulo_loop_accepts_a_clean_plan_on_the_first_try() -> None:
+    registry = build_travel_registry()
+    plan_json = (
+        '[{"id": "e1", "tool": "estimate_hotel_cost", "args": {"city": "Lyon", "nights": 2}, "depends_on": []},'
+        ' {"id": "b1", "tool": "book_hotel", "args": {"city": "Lyon", "nights": 2}, "depends_on": ["e1"]}]'
+    )
+    provider = MockProvider([plan_json])
+    run = run_modulo_loop(provider, "book Lyon", registry)
+
+    assert run.rounds == 0
+    assert run.verified is True
+    assert run.verifier_log == [[]]
+    assert len(provider.calls) == 1
+
+
+def test_modulo_loop_back_prompts_once_on_a_budget_violation() -> None:
+    registry = build_travel_registry()
+    over = (
+        '[{"id": "e1", "tool": "estimate_hotel_cost", "args": {"city": "Paris", "nights": 3}, "depends_on": []},'
+        ' {"id": "b1", "tool": "book_hotel", "args": {"city": "Paris", "nights": 3}, "depends_on": ["e1"]}]'
+    )
+    within = (
+        '[{"id": "e1", "tool": "estimate_hotel_cost", "args": {"city": "Lyon", "nights": 3}, "depends_on": []},'
+        ' {"id": "b1", "tool": "book_hotel", "args": {"city": "Lyon", "nights": 3}, "depends_on": ["e1"]}]'
+    )
+    run = run_modulo_loop(MockProvider([over, within]), "book a hotel", registry)
+
+    assert run.rounds == 1
+    assert len(run.verifier_log[0]) == 1
+    assert "budget" in run.verifier_log[0][0]
+    assert run.verifier_log[1] == []
+    assert run.verified is True
+
+
+def test_modulo_loop_back_prompt_carries_multiple_critiques_at_once() -> None:
+    registry = build_travel_registry()
+    bad = (
+        '[{"id": "i1", "tool": "draft_itinerary",'
+        '  "args": {"weather": "sunny", "attractions": "the park"}, "depends_on": []},'
+        ' {"id": "b1", "tool": "book_hotel", "args": {"city": "Paris", "nights": 3}, "depends_on": []}]'
+    )
+    fixed = (
+        '[{"id": "w1", "tool": "get_weather", "args": {"city": "Lyon"}, "depends_on": []},'
+        ' {"id": "i1", "tool": "draft_itinerary",'
+        '  "args": {"weather": "$w1", "attractions": "the park"}, "depends_on": ["w1"]},'
+        ' {"id": "e1", "tool": "estimate_hotel_cost", "args": {"city": "Lyon", "nights": 3}, "depends_on": []},'
+        ' {"id": "b1", "tool": "book_hotel", "args": {"city": "Lyon", "nights": 3}, "depends_on": ["e1"]}]'
+    )
+    run = run_modulo_loop(MockProvider([bad, fixed]), "plan a trip", registry)
+
+    assert run.rounds == 1
+    assert len(run.verifier_log[0]) >= 2  # temporal order, precondition, and budget all broke at once
+    assert run.verified is True
+
+
+def test_modulo_loop_stops_at_the_round_cap_when_the_planner_keeps_violating() -> None:
+    registry = build_travel_registry()
+    always_over = '[{"id": "b1", "tool": "book_hotel", "args": {"city": "Paris", "nights": 3}, "depends_on": []}]'
+    provider = MockProvider([always_over, always_over, always_over])
+
+    run = run_modulo_loop(provider, "book a hotel", registry, max_rounds=2)
+
+    assert run.verified is False
+    assert run.rounds == 2
+    assert len(provider.calls) == 3  # initial plan plus exactly 2 back-prompt rounds
+
+
+def test_modulo_loop_validator_passes_where_a_semantic_verifier_catches_it() -> None:
+    registry = build_travel_registry()
+    plan = parse_plan("g", '[{"id": "b1", "tool": "book_hotel", "args": {"city": "Paris", "nights": 1}, "depends_on": []}]')
+    validate_plan(plan, registry)  # structural layer: passes, known tool, no deps, acyclic
+
+    critiques = run_verifiers(plan)
+    assert any("estimate_hotel_cost" in c for c in critiques)  # semantic layer: catches the missing precondition
+
+
+# --- Hierarchical decomposition ---------------------------------------------
+
+
+def test_hierarchical_expands_a_compound_step_into_two_primitives() -> None:
+    registry = build_travel_registry()
+    top_json = '[{"id": "day", "tool": "expand", "args": {"goal": "check weather and attractions"}, "depends_on": []}]'
+    sub_json = (
+        '[{"id": "w", "tool": "get_weather", "args": {"city": "Lyon"}, "depends_on": []},'
+        ' {"id": "a", "tool": "search_attractions", "args": {"city": "Lyon"}, "depends_on": []}]'
+    )
+    run = run_hierarchical(MockProvider([top_json, sub_json]), "plan Lyon", registry)
+
+    top = run.nodes[0]
+    assert not top.primitive
+    assert [c.step.id for c in top.children] == ["w", "a"]
+    assert all(c.primitive for c in top.children)
+    assert run.leaf_results["w"].ok and run.leaf_results["a"].ok
+    assert run.expansion_calls == 1
+
+
+def test_hierarchical_leaves_a_second_level_unmet_when_the_depth_cap_is_hit() -> None:
+    registry = build_travel_registry()
+    top_json = '[{"id": "outer", "tool": "expand", "args": {"goal": "outer goal"}, "depends_on": []}]'
+    outer_sub_json = '[{"id": "inner", "tool": "expand", "args": {"goal": "inner goal"}, "depends_on": []}]'
+    run = run_hierarchical(MockProvider([top_json, outer_sub_json]), "plan", registry, max_depth=1)
+
+    assert run.unmet_compound_ids == ["inner"]
+    assert run.expansion_calls == 1  # inner's own sub-planner call never happened
+
+
+def test_hierarchical_halts_expansion_at_the_node_budget() -> None:
+    registry = build_travel_registry()
+    top_json = '[{"id": "day", "tool": "expand", "args": {"goal": "big day"}, "depends_on": []}]'
+    sub_json = (
+        '[{"id": "w", "tool": "get_weather", "args": {"city": "Lyon"}, "depends_on": []},'
+        ' {"id": "a", "tool": "search_attractions", "args": {"city": "Lyon"}, "depends_on": []},'
+        ' {"id": "h", "tool": "estimate_hotel_cost", "args": {"city": "Lyon", "nights": 1}, "depends_on": []}]'
+    )
+    run = run_hierarchical(MockProvider([top_json, sub_json]), "plan", registry, max_nodes=2)
+
+    assert run.node_count == 2
+    assert run.unmet_compound_ids == ["day"]
+    assert "a" not in run.leaf_results and "h" not in run.leaf_results
+
+
+def test_hierarchical_only_compound_steps_trigger_a_sub_planner_call() -> None:
+    registry = build_travel_registry()
+    top_json = (
+        '[{"id": "w", "tool": "get_weather", "args": {"city": "Lyon"}, "depends_on": []},'
+        ' {"id": "day", "tool": "expand", "args": {"goal": "attractions"}, "depends_on": []}]'
+    )
+    sub_json = '[{"id": "a", "tool": "search_attractions", "args": {"city": "Lyon"}, "depends_on": []}]'
+    run = run_hierarchical(MockProvider([top_json, sub_json]), "plan", registry)
+
+    assert run.expansion_calls == 1
+    assert run.leaf_results["w"].ok
+    assert run.nodes[0].primitive
+    assert not run.nodes[1].primitive
+    assert [c.step.id for c in run.nodes[1].children] == ["a"]
+
+
+def test_hierarchical_is_deterministic_across_runs() -> None:
+    registry = build_travel_registry()
+    top_json = '[{"id": "day", "tool": "expand", "args": {"goal": "plan"}, "depends_on": []}]'
+    sub_json = (
+        '[{"id": "w", "tool": "get_weather", "args": {"city": "Lyon"}, "depends_on": []},'
+        ' {"id": "a", "tool": "search_attractions", "args": {"city": "Lyon"}, "depends_on": []}]'
+    )
+    run1 = run_hierarchical(MockProvider([top_json, sub_json]), "plan", registry)
+    run2 = run_hierarchical(MockProvider([top_json, sub_json]), "plan", registry)
+
+    tree1 = [(n.step.id, n.depth, [c.step.id for c in n.children]) for n in run1.nodes]
+    tree2 = [(n.step.id, n.depth, [c.step.id for c in n.children]) for n in run2.nodes]
+    assert tree1 == tree2
+    assert run1.node_count == run2.node_count
+
+
+# --- Plan selection ----------------------------------------------------------
+
+
+def test_plan_selection_executes_only_the_highest_scored_candidate() -> None:
+    registry = build_travel_registry()
+    c0 = '[{"id": "w0", "tool": "get_weather", "args": {"city": "Paris"}, "depends_on": []}]'
+    c1 = '[{"id": "w1", "tool": "get_weather", "args": {"city": "Lyon"}, "depends_on": []}]'
+    c2 = '[{"id": "w2", "tool": "get_weather", "args": {"city": "Lisbon"}, "depends_on": []}]'
+    run = run_plan_selection(MockProvider([c0, c1, c2, "8", "5", "3"]), "plan a trip", registry, k=3)
+
+    assert run.chosen.index == 0
+    assert [r.step_id for r in run.results] == ["w0"]
+    assert run.candidates[1].score == 5 and run.candidates[2].score == 3
+
+
+def test_plan_selection_drops_an_infeasible_candidate_before_scoring() -> None:
+    registry = build_travel_registry()
+    c0 = '[{"id": "w0", "tool": "get_weather", "args": {"city": "Paris"}, "depends_on": []}]'
+    c1 = '[{"id": "b1", "tool": "not_a_real_tool", "args": {}, "depends_on": []}]'
+    provider = MockProvider([c0, c1, "5"])  # only one score call: c1 never reaches the critic
+    run = run_plan_selection(provider, "plan a trip", registry, k=2)
+
+    assert run.candidates[1].plan is None
+    assert run.candidates[1].error is not None
+    assert run.chosen.index == 0
+    assert len(provider.calls) == 3  # 2 proposals + exactly 1 critic call
+
+
+def test_plan_selection_ties_break_toward_the_lower_index() -> None:
+    registry = build_travel_registry()
+    c0 = '[{"id": "w0", "tool": "get_weather", "args": {"city": "Paris"}, "depends_on": []}]'
+    c1 = '[{"id": "w1", "tool": "get_weather", "args": {"city": "Lyon"}, "depends_on": []}]'
+    run = run_plan_selection(MockProvider([c0, c1, "7", "7"]), "plan a trip", registry, k=2)
+
+    assert run.chosen.index == 0
+
+
+def test_plan_selection_tournament_can_pick_a_winner_scoring_would_not() -> None:
+    registry = build_travel_registry()
+    c0 = '[{"id": "w0", "tool": "get_weather", "args": {"city": "Paris"}, "depends_on": []}]'
+    c1 = '[{"id": "w1", "tool": "get_weather", "args": {"city": "Lyon"}, "depends_on": []}]'
+    provider = MockProvider([c0, c1, "2"])  # verdict "2": the challenger wins the matchup
+    run = run_plan_selection_tournament(provider, "plan a trip", registry, k=2)
+
+    assert run.chosen.index == 1
+    assert [r.step_id for r in run.results] == ["w1"]
+
+
+def test_plan_selection_never_executes_a_rejected_candidates_tool_call() -> None:
+    calls: list[str] = []
+
+    def track_paris() -> str:
+        calls.append("paris")
+        return "paris done"
+
+    def track_lyon() -> str:
+        calls.append("lyon")
+        return "lyon done"
+
+    registry = ToolRegistry()
+    registry.register(Tool(name="track_paris", description="d", parameters={"type": "object", "properties": {}}, fn=track_paris))
+    registry.register(Tool(name="track_lyon", description="d", parameters={"type": "object", "properties": {}}, fn=track_lyon))
+
+    c0 = '[{"id": "p", "tool": "track_paris", "args": {}, "depends_on": []}]'
+    c1 = '[{"id": "l", "tool": "track_lyon", "args": {}, "depends_on": []}]'
+    run = run_plan_selection(MockProvider([c0, c1, "9", "1"]), "plan a trip", registry, k=2)
+
+    assert calls == ["paris"]
+    assert run.chosen.index == 0
+
+
+# --- Premortem (simulate before executing) -----------------------------------
+
+
+def test_premortem_clean_simulation_executes_for_real_and_matches_direct_run() -> None:
+    registry = build_travel_registry()
+    plan = Plan(
+        goal="g",
+        steps=[
+            Step(id="w", tool="get_weather", args={"city": "Lyon"}, depends_on=[]),
+            Step(id="a", tool="search_attractions", args={"city": "Lyon"}, depends_on=[]),
+        ],
+    )
+    predicted = ["Partly cloudy, high of 20C", "Basilica of Notre-Dame de Fourviere, Old Lyon, Traboules"]
+    result = run_premortem(MockProvider(predicted), "plan Lyon", registry, plan=plan)
+
+    assert result.doomed is False
+    assert result.executed is True
+    real = {r.step_id: r.output for r in result.real_results}
+    assert real["w"] == "Partly cloudy, high of 20C"  # same value get_weather("Lyon") returns for real
+    assert real["a"] == "Basilica of Notre-Dame de Fourviere, Old Lyon, Traboules"
+
+
+def test_premortem_catches_a_storm_before_the_real_tool_runs() -> None:
+    registry = build_travel_registry()
+    plan = Plan(
+        goal="g",
+        steps=[
+            Step(id="w", tool="get_weather", args={"city": "Paris"}, depends_on=[]),
+            Step(id="outdoor", tool="search_attractions", args={"city": "Paris"}, depends_on=["w"]),
+        ],
+    )
+    provider = MockProvider(["Mild, no rain", "Storm warning: heavy winds expected"])
+    result = run_premortem(provider, "plan Paris", registry, plan=plan)
+
+    assert result.doomed is True
+    assert result.doomed_step_id == "outdoor"
+    assert result.executed is False
+    assert result.real_results is None
+
+
+def test_premortem_repaired_plan_resimulates_clean_and_executes_for_real() -> None:
+    registry = build_travel_registry()
+    doomed_plan = Plan(
+        goal="g",
+        steps=[
+            Step(id="w", tool="get_weather", args={"city": "Paris"}, depends_on=[]),
+            Step(id="outdoor", tool="search_attractions", args={"city": "Paris"}, depends_on=["w"]),
+        ],
+    )
+    caught = run_premortem(
+        MockProvider(["Mild, no rain", "Storm warning: heavy winds"]), "plan Paris", registry, plan=doomed_plan
+    )
+    assert caught.doomed is True
+    assert compute_blast_radius(doomed_plan, caught.doomed_step_id) == {"outdoor"}
+
+    fixed_plan = Plan(
+        goal="g",
+        steps=[
+            Step(id="w", tool="get_weather", args={"city": "Paris"}, depends_on=[]),
+            Step(
+                id="outdoor",
+                tool="draft_itinerary",
+                args={"weather": "$w", "attractions": "museum"},
+                depends_on=["w"],
+            ),
+        ],
+    )
+    fixed = run_premortem(
+        MockProvider(["Mild, no rain", "Given weather, visit the museum"]), "plan Paris", registry, plan=fixed_plan
+    )
+    assert fixed.doomed is False
+    assert fixed.executed is True
+    assert any(r.step_id == "outdoor" for r in fixed.real_results or [])
+
+
+def test_premortem_predicted_state_from_step_i_reaches_step_i_plus_1() -> None:
+    registry = build_travel_registry()
+    plan = Plan(
+        goal="g",
+        steps=[
+            Step(id="w", tool="get_weather", args={"city": "Lyon"}, depends_on=[]),
+            Step(id="a", tool="search_attractions", args={"city": "Lyon"}, depends_on=["w"]),
+        ],
+    )
+    provider = MockProvider(["Sunny and clear", "Old Lyon walking tour"])
+    trajectory, doomed_id = simulate_plan(provider, "plan Lyon", plan, registry)
+
+    assert doomed_id is None
+    second_call_prompt = provider.calls[1]["messages"][0].content
+    assert "Sunny and clear" in second_call_prompt  # step w's prediction reached step a's prompt
+
+
+def test_premortem_is_deterministic_across_runs() -> None:
+    registry = build_travel_registry()
+    plan = Plan(goal="g", steps=[Step(id="w", tool="get_weather", args={"city": "Lyon"}, depends_on=[])])
+    run1 = run_premortem(MockProvider(["Sunny and clear"]), "plan Lyon", registry, plan=plan)
+    run2 = run_premortem(MockProvider(["Sunny and clear"]), "plan Lyon", registry, plan=plan)
+
+    assert run1.doomed == run2.doomed
+    assert run1.state == run2.state
+    assert [s.output for s in (run1.real_results or [])] == [s.output for s in (run2.real_results or [])]

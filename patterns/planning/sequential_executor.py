@@ -92,15 +92,15 @@ def demo() -> None:
     registry = build_travel_registry()
 
     print("=== Classic plan-then-execute (sequential) ===")
-    print(f"Goal: {goal}\n")
+    print(f"Goal: {goal}")
     run = run_sequential(provider, goal, registry)
     print(f"Planner produced {len(run.plan.steps)} steps:")
     for step in run.plan.steps:
         print(f"  {step.id}: {step.tool}({step.args}) depends_on={step.depends_on}")
-    print("\nExecution:")
+    print("Execution:")
     for result in run.results:
         print(f"  {result.step_id} -> {result.output}")
-    print(f"\nFinal answer: {run.final_answer}")
+    print(f"Final answer: {run.final_answer}")
 
 
 if __name__ == "__main__":
