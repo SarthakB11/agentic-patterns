@@ -2,11 +2,11 @@
 
 [![CI](https://github.com/SarthakB11/agentic-patterns/actions/workflows/ci.yml/badge.svg)](https://github.com/SarthakB11/agentic-patterns/actions/workflows/ci.yml)
 
-Twelve core agentic AI patterns, each implemented as a small, runnable, tested example in plain Python. Every example runs offline against a deterministic scripted mock provider: clone the repo and run any pattern with no API key, no install, and no network.
+Twelve core agentic AI patterns implemented as runnable, tested reference code in plain Python. Each pattern folder covers its variants from the canonical form through what 2025-2026 research added: tree search over trajectories, localized plan repair, dual-LLM injection defenses, oversight capacity, stateless MCP, and more, each module tied to the paper or system it implements. Every example runs offline against a deterministic scripted mock provider: clone the repo and run any pattern with no API key, no install, and no network.
 
 ## Why this repo
 
-Agent frameworks change monthly; the patterns underneath them do not. This repo implements the patterns themselves, without a framework, so you can see exactly what a supervisor, a reflection loop, or an MCP handshake does at the level of messages and control flow. Each folder is teaching code: typed, documented, tested, and small enough to read in one sitting. Each folder README also says which sub-variants were left out and why, so the coverage claims are checkable.
+Agent frameworks change monthly; the patterns underneath them do not. This repo implements the patterns themselves, without a framework, so you can see exactly what a supervisor, a reflection loop, or an MCP handshake does at the level of messages and control flow. Each module is teaching code: typed, documented, tested, and small enough to read in one sitting, with the research it implements cited next to the mechanism. Each folder README says which sub-variants were left out and why, so the coverage claims are checkable, and every citation was verified against its primary source before shipping.
 
 ## Quickstart
 
