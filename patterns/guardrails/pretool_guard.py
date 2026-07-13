@@ -19,6 +19,15 @@ it to human approval" and the OpenAI Agents SDK's `needsApproval` pattern.
 Input validation (allowlist, ranges) always runs before the approval pause,
 never after, so an invalid call is never presented to a human as if it were
 merely borderline.
+
+This static policy shape (a fixed dict of ranges and thresholds, written
+once in Python) is the simplest point on the privilege-control design
+space, not the one the 2025 research settled on. Shi et al.'s Progent
+(arXiv:2504.11703) makes the policy declarative data instead: an ordered
+rule list a task can generate and narrow as it learns more, with privilege
+expansion always gated on a human. See `policy_engine.py` for that general,
+programmable shape; this module stays as the hard-coded starting point it
+generalizes from.
 """
 
 from __future__ import annotations

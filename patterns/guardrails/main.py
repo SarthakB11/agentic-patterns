@@ -1,13 +1,17 @@
-"""Guardrails pattern: checkpoints around a model, plus one architectural guard.
+"""Guardrails pattern: checkpoints around a model, plus architectural guards.
 
 A guardrail is a checkpoint that inspects data crossing a trust boundary
 around a language model and decides whether to allow it, change it, or
 block it. Input guards run before the model sees a request; output guards
 run after generation; a pre-tool guard sits between the model and any tool
 call it wants to make. The guiding principle is defense in depth: no single
-guard is enough, so guards are layered and every decision is logged.
+guard is enough, so guards are layered and every decision is logged. The
+2025-2026 shift this folder also covers: checkpoint inspection alone is not
+a reliable defense against indirect prompt injection, so several modules
+here constrain the architecture instead, removing an injection's path to a
+side effect rather than trying to detect it.
 
-This demo runs ten scenarios end to end, entirely offline against
+This demo runs fifteen scenarios end to end, entirely offline against
 `MockProvider` with scripted, coherent conversations, no network call and
 no API key:
 
@@ -33,6 +37,21 @@ no API key:
     an embedded, injected instruction; the plan was already committed
     before that text existed, so the injection has no path to a new or
     different action.
+11. Dual LLM (CaMeL-lite): a quarantined extraction strips an embedded
+    instruction from a tool result, and a capability policy blocks an
+    unauthorized recipient and raw, unquarantined tool text at the sink.
+12. Policy engine (Progent-lite): a declarative policy narrows without
+    approval and blocks an expansion that was denied, and a hard deny rule
+    still wins over an LLM-authored policy that tries to allow everything.
+13. Reasoning auditor (AlignmentCheck-style): a hijacked reasoning trace
+    tripwires on a keyword match, and a subtler one escalates to a
+    scripted auditor model.
+14. Injection suite (AgentDojo-lite): utility versus attack-success-rate
+    across three defenses, showing a regex guard stopped by an adaptively
+    phrased case that the capability layer still blocks.
+15. Design patterns: Action-Selector never lets a tool result reach the
+    model at all; Context-Minimization drops the raw request once its
+    intent is extracted.
 
 Run it from the repository root:
 
@@ -46,12 +65,23 @@ function builds its provider through `agentic_patterns.get_provider`.
 
 from __future__ import annotations
 
-from patterns.guardrails import architecture, groundedness, pretool_guard, retrieval_guard, scenarios
+from patterns.guardrails import (
+    architecture,
+    design_patterns,
+    dual_llm,
+    groundedness,
+    injection_suite,
+    policy_engine,
+    pretool_guard,
+    reasoning_auditor,
+    retrieval_guard,
+    scenarios,
+)
 
 
 def main() -> None:
     """Run every guardrails sub-variant demo and print a readable transcript."""
-    print("GUARDRAILS PATTERN: checkpoints around a model, plus one architectural guard\n")
+    print("GUARDRAILS PATTERN: checkpoints around a model, plus architectural guards\n")
 
     scenarios.run_input_guard_demo()
     print()
@@ -92,7 +122,35 @@ def main() -> None:
     assert executed_as_planned
     print()
 
-    print("All ten scenarios completed without exhausting their scripts.")
+    legit, blocked_dest, blocked_quarantine = dual_llm.run_dual_llm_demo()
+    assert not any(s.blocked for s in legit.executed)
+    assert any(s.blocked for s in blocked_dest.executed) and any(s.blocked for s in blocked_quarantine.executed)
+    print()
+
+    _, policy_results = policy_engine.run_policy_engine_demo()
+    assert not policy_results[-1].passed  # the LLM-authored policy cannot override the hard deny rule
+    print()
+
+    aligned, hijacked, subtle = reasoning_auditor.run_reasoning_auditor_demo()
+    assert aligned.passed and not hijacked.passed and not subtle.passed
+    print()
+
+    suite_rows = injection_suite.run_injection_suite_demo()
+    by_name = {row.config_name: row for row in suite_rows}
+    assert by_name["undefended"].attack_success_rate == 1.0
+    assert 0.0 < by_name["regex_input_guard"].attack_success_rate < 1.0
+    assert by_name["capability_layer"].attack_success_rate == 0.0 and by_name["capability_layer"].utility == 1.0
+    print()
+
+    action_clean, action_injected = design_patterns.run_action_selector_demo()
+    assert action_clean.model_calls == 1 and not action_clean.saw_tool_observation
+    print()
+
+    minimization_result = design_patterns.run_context_minimization_demo()
+    assert not minimization_result.raw_request_leaked
+    print()
+
+    print("All fifteen scenarios completed without exhausting their scripts.")
 
 
 if __name__ == "__main__":

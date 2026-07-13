@@ -30,6 +30,14 @@ from typing import Any, Protocol, runtime_checkable
 class OnFail(enum.Enum):
     """What a pipeline should do when a guard's check does not pass.
 
+    Every guard in this pattern reads one of three surfaces: input text,
+    tool text, or output text. `reasoning_auditor.py` adds a fourth: the
+    opaque `reasoning` channel now carried by `Completion` and `Message`,
+    which Chennabasappa et al.'s LlamaFirewall (arXiv:2505.03574) names as
+    a distinct detection surface in its AlignmentCheck component, since a
+    hijacked goal often shows up in the model's own reasoning before it
+    shows up as a blocked action.
+
     Values:
         NOOP: Log the failure and continue with the original value.
         EXCEPTION: Raise `GuardViolation` immediately.

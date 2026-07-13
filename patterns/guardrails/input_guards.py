@@ -10,10 +10,19 @@ call:
   subjects a support bot is allowed to discuss.
 - `LengthGuard`: rejects an input longer than a configured character limit.
 
-None of these call a model. They exist to demonstrate that the cheapest,
-most reliable defenses run before anything expensive does, and that a
-confirmed injection can escalate all the way to `OnFail.TRIPWIRE` when the
-match is unambiguous.
+None of these call a model. They exist to demonstrate that the cheapest
+checks run before anything expensive does, and that a confirmed injection
+can escalate all the way to `OnFail.TRIPWIRE` when the match is unambiguous.
+
+`PromptInjectionGuard` in particular should not be read as *the* defense.
+It is a fixed pattern set, and Zhan et al., "Adaptive Attacks Break
+Defenses Against Indirect Prompt Injection Attacks on LLM Agents"
+(arXiv:2503.00061), bypassed eight published defenses of this class with
+adaptively phrased attacks, holding attack-success-rate above 50 percent.
+Treat it as a cheap first filter and an audit signal, not the guarantee:
+the guarantee that survives adaptive phrasing lives in `dual_llm.py`'s
+capability layer and `policy_engine.py`'s declarative policy, neither of
+which depends on recognizing what an attack looks like.
 """
 
 from __future__ import annotations

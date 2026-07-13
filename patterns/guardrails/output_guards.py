@@ -12,6 +12,13 @@ Both guards report `OnFail.RETRY` on failure by default: the caller feeds
 the guard's message back to the model and asks it to try again, which is
 what `pipeline.run_guarded` implements as the bounded validate-retry-repair
 loop.
+
+`ModerationGuard` screens for a fixed blocklist, and like
+`input_guards.PromptInjectionGuard` it should not be presented as a
+reliable block: Zhan et al. (arXiv:2503.00061) showed this class of
+detection defense falls to adaptively phrased attacks over half the time.
+It is a cheap first filter and an audit signal; the architectural modules
+(`dual_llm.py`, `policy_engine.py`) are where the guarantee lives.
 """
 
 from __future__ import annotations

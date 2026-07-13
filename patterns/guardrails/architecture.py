@@ -26,6 +26,19 @@ Contrast this with `input_guards.PromptInjectionGuard`, which detects known
 injection phrasings and can miss novel ones. Plan-Then-Execute does not
 need to detect anything, at the cost of only being able to run plans that
 can be committed to upfront.
+
+Scope this guarantee correctly: Plan-Then-Execute protects the *control*
+flow, the set and order of tool calls, and nothing else. It does nothing
+for the *data* flow into a plan's arguments. The demo below only looks safe
+because the email body is a literal string already committed in the plan;
+a real task that has to place a retrieved value (for example the refund
+window inside `search_policy`'s result) into a sink argument would carry
+whatever that value contains, injection included, straight through
+execution, because the plan holds a variable name until the tool actually
+runs. Beurer-Kellner et al. (arXiv:2506.08837) frame Plan-Then-Execute as
+one tradeoff point on a spectrum, not a full defense, for exactly this
+reason. `dual_llm.py`'s capability layer is what closes the data-flow gap:
+see it for the argument-level guarantee this module does not provide.
 """
 
 from __future__ import annotations

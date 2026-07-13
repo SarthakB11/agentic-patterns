@@ -86,10 +86,16 @@ class GroundednessGuard:
     on_fail: OnFail = OnFail.REFRAIN
 
     def check(self, value: str) -> GuardResult:
-        claims = [
-            ClaimCheck(claim=c, grounded=self.score_fn(c, self.context) >= self.threshold, overlap=self.score_fn(c, self.context))
-            for c in _split_claims(value)
-        ]
+        # `score_fn` is called once per claim and the result reused for both
+        # `grounded` and `overlap`. With the default pure heuristic, calling
+        # it twice only wastes work; with a provider-backed judge swapped in
+        # (which this guard's docstring invites), it would double the model
+        # calls and risk the two values disagreeing if the judge is not
+        # perfectly deterministic.
+        claims = []
+        for c in _split_claims(value):
+            overlap = self.score_fn(c, self.context)
+            claims.append(ClaimCheck(claim=c, grounded=overlap >= self.threshold, overlap=overlap))
         ungrounded = [c for c in claims if not c.grounded]
         if not ungrounded:
             return GuardResult(passed=True, action=OnFail.NOOP, value=claims)
