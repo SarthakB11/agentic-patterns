@@ -26,6 +26,13 @@ from agentic_patterns import Message, Provider, Tool, ToolRegistry, get_provider
 
 from patterns.memory.short_term import count_tokens
 
+# The demo entry the model pages out, then back in, through function calls.
+# Reused for both the seeded main-context entries and the scripted
+# `page_out` call below, so the two can never drift apart the way a pair of
+# independently hand-typed strings could.
+DEMO_ARCHIVE_KEY = "kyoto-trip"
+DEMO_ARCHIVE_TEXT = "Kyoto trip: ryokan near Gion, October, under $300/night."
+
 
 @dataclass
 class MemGPTMemory:
@@ -101,10 +108,10 @@ def run_memgpt_demo(provider: Provider | None = None) -> MemGPTMemory:
                 "Condensed: Terraform deployment set up in us-west-2.",
                 scripted_tool_call(
                     "page_out",
-                    {"key": "kyoto-trip", "text": "Kyoto trip: ryokan near Gion, October, under $300/night."},
+                    {"key": DEMO_ARCHIVE_KEY, "text": DEMO_ARCHIVE_TEXT},
                 ),
-                scripted_tool_call("page_in", {"key": "kyoto-trip"}),
-                "Your Kyoto trip notes: ryokan near Gion, October, under $300/night.",
+                scripted_tool_call("page_in", {"key": DEMO_ARCHIVE_KEY}),
+                f"Your Kyoto trip notes: {DEMO_ARCHIVE_TEXT.removeprefix('Kyoto trip: ')}",
             ]
         )
 
@@ -118,9 +125,9 @@ def run_memgpt_demo(provider: Provider | None = None) -> MemGPTMemory:
 
     for entry in [
         "User set up a us-west-2 Terraform deployment.",
-        "User asked for Kyoto ryokan recommendations near Gion in October.",
-        "User set a budget of under $300 a night.",
         "User confirmed the Terraform state bucket is versioned.",
+        DEMO_ARCHIVE_TEXT,
+        "User asked if the ryokan offers a late checkout.",
     ]:
         memory.append_main(entry, summarize=summarize)
 

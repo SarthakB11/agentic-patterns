@@ -144,17 +144,32 @@ _ADVANCED_DEMO_QUERY = "What does Aurora do automatically for a customer who upg
 _ABSTAIN_DEMO_QUERY = "xylophone quokka marmalade skateboard umbrella"
 
 
-def run_naive_rag_demo(provider: Provider | None = None) -> RagResult:
+def run_naive_rag_demo(
+    provider: Provider | None = None,
+    *,
+    dense_index: DenseIndex | None = None,
+    bm25_index: BM25Index | None = None,
+    embedder: Embedder | None = None,
+) -> RagResult:
     """Run naive RAG end to end: one dense lookup, no fusion, no reranking.
 
     Args:
         provider: A `Provider` to drive the demo. Defaults to a
             `MockProvider` scripted with a grounded, two-citation answer.
+        dense_index: A prebuilt `DenseIndex` over the sample corpus. Built
+            fresh, together with `bm25_index`, when either is omitted, so
+            the demo still runs standalone with no arguments.
+        bm25_index: A prebuilt `BM25Index` over the same corpus.
+        embedder: Embedder for query encoding. Defaults to
+            `agentic_patterns.get_embedder`.
 
     Returns:
         The full `RagResult` for the demo query.
     """
-    dense_index, bm25_index = _build_indexes()
+    if dense_index is None or bm25_index is None:
+        dense_index, bm25_index = _build_indexes()
+    if embedder is None:
+        embedder = get_embedder()
     if provider is None:
         provider = get_provider(
             script=[
@@ -168,7 +183,7 @@ def run_naive_rag_demo(provider: Provider | None = None) -> RagResult:
         _NAIVE_DEMO_QUERY,
         dense_index=dense_index,
         bm25_index=bm25_index,
-        embedder=get_embedder(),
+        embedder=embedder,
         provider=provider,
         retrieval="dense",
         fetch_k=2,
@@ -176,7 +191,13 @@ def run_naive_rag_demo(provider: Provider | None = None) -> RagResult:
     )
 
 
-def run_hybrid_rerank_demo(provider: Provider | None = None) -> RagResult:
+def run_hybrid_rerank_demo(
+    provider: Provider | None = None,
+    *,
+    dense_index: DenseIndex | None = None,
+    bm25_index: BM25Index | None = None,
+    embedder: Embedder | None = None,
+) -> RagResult:
     """Run the advanced pipeline: hybrid retrieval, then an LLM rerank pass.
 
     The demo question has two parts answered by two different chunks from
@@ -189,11 +210,20 @@ def run_hybrid_rerank_demo(provider: Provider | None = None) -> RagResult:
         provider: A `Provider` to drive the demo. Defaults to a
             `MockProvider` scripted with the rerank order and a
             two-citation grounded answer.
+        dense_index: A prebuilt `DenseIndex` over the sample corpus. Built
+            fresh, together with `bm25_index`, when either is omitted, so
+            the demo still runs standalone with no arguments.
+        bm25_index: A prebuilt `BM25Index` over the same corpus.
+        embedder: Embedder for query encoding. Defaults to
+            `agentic_patterns.get_embedder`.
 
     Returns:
         The full `RagResult` for the demo query.
     """
-    dense_index, bm25_index = _build_indexes()
+    if dense_index is None or bm25_index is None:
+        dense_index, bm25_index = _build_indexes()
+    if embedder is None:
+        embedder = get_embedder()
     if provider is None:
         provider = get_provider(
             script=[
@@ -208,7 +238,7 @@ def run_hybrid_rerank_demo(provider: Provider | None = None) -> RagResult:
         _ADVANCED_DEMO_QUERY,
         dense_index=dense_index,
         bm25_index=bm25_index,
-        embedder=get_embedder(),
+        embedder=embedder,
         provider=provider,
         retrieval="hybrid",
         fetch_k=6,
@@ -217,7 +247,13 @@ def run_hybrid_rerank_demo(provider: Provider | None = None) -> RagResult:
     )
 
 
-def run_abstain_demo(provider: Provider | None = None) -> RagResult:
+def run_abstain_demo(
+    provider: Provider | None = None,
+    *,
+    dense_index: DenseIndex | None = None,
+    bm25_index: BM25Index | None = None,
+    embedder: Embedder | None = None,
+) -> RagResult:
     """Run the pipeline on a query with no relevant chunks in the corpus.
 
     A relevance threshold well above the best score any chunk can reach for
@@ -229,18 +265,27 @@ def run_abstain_demo(provider: Provider | None = None) -> RagResult:
         provider: A `Provider` to drive the demo. Defaults to a
             `MockProvider` with an empty script, since a correctly abstaining
             pipeline makes no generation call at all.
+        dense_index: A prebuilt `DenseIndex` over the sample corpus. Built
+            fresh, together with `bm25_index`, when either is omitted, so
+            the demo still runs standalone with no arguments.
+        bm25_index: A prebuilt `BM25Index` over the same corpus.
+        embedder: Embedder for query encoding. Defaults to
+            `agentic_patterns.get_embedder`.
 
     Returns:
         The full `RagResult` for the demo query, with `answer.abstained` True.
     """
-    dense_index, bm25_index = _build_indexes()
+    if dense_index is None or bm25_index is None:
+        dense_index, bm25_index = _build_indexes()
+    if embedder is None:
+        embedder = get_embedder()
     if provider is None:
         provider = get_provider(script=[])
     return answer_question(
         _ABSTAIN_DEMO_QUERY,
         dense_index=dense_index,
         bm25_index=bm25_index,
-        embedder=get_embedder(),
+        embedder=embedder,
         provider=provider,
         retrieval="dense",
         fetch_k=5,

@@ -14,7 +14,7 @@ from pathlib import Path
 
 import pytest
 
-from agentic_patterns import Message, MockProvider, Tool, ToolCall, ToolRegistry
+from agentic_patterns import MockProvider, Tool, ToolRegistry
 
 from patterns.planning.context_offload import load_state, run_with_offload, save_state
 from patterns.planning.dag_executor import run_dag
@@ -119,6 +119,16 @@ def test_sequential_executor_runs_tools_in_order_and_uses_scripted_answer() -> N
     assert len(provider.calls) == 2  # exactly one planner call, one solver call
 
 
+def test_sequential_executor_marks_a_failed_step_not_ok() -> None:
+    registry = build_travel_registry()
+    plan_json = '[{"id": "step1", "tool": "book_hotel", "args": {"city": "Paris", "nights": 2}, "depends_on": []}]'
+    provider = MockProvider([plan_json, "final answer"])
+    run = run_sequential(provider, "book Paris", registry)
+
+    assert run.results[0].ok is False
+    assert run.results[0].output.startswith("ERROR:")
+
+
 def test_sequential_executor_substitutes_dependency_output() -> None:
     registry = build_travel_registry()
     plan_json = (
@@ -153,6 +163,16 @@ def test_dag_executor_groups_dependent_step_into_a_later_wave() -> None:
     # c must have received both upstream outputs, not the raw placeholders
     assert "Mild and cloudy" in run.results["c"].output
     assert "Louvre Museum" in run.results["c"].output
+
+
+def test_dag_executor_marks_a_failed_step_not_ok() -> None:
+    registry = build_travel_registry()
+    plan_json = '[{"id": "a", "tool": "book_hotel", "args": {"city": "Paris", "nights": 1}, "depends_on": []}]'
+    provider = MockProvider([plan_json])
+    run = run_dag(provider, "book Paris", registry)
+
+    assert run.results["a"].ok is False
+    assert run.results["a"].output.startswith("ERROR:")
 
 
 def test_dag_executor_dispatches_independent_steps_concurrently() -> None:
@@ -274,6 +294,16 @@ def test_rewoo_uses_exactly_two_model_calls_regardless_of_tool_count() -> None:
     assert len(provider.calls) == 2
     assert len(run.evidence) == 3
     assert run.final_answer == "final synthesis"
+
+
+def test_rewoo_marks_a_failed_evidence_step_not_ok() -> None:
+    registry = build_travel_registry()
+    blueprint_json = '[{"id": "E1", "tool": "book_hotel", "args": {"city": "Paris", "nights": 1}, "depends_on": []}]'
+    provider = MockProvider([blueprint_json, "final"])
+    run = run_rewoo(provider, "book Paris", registry)
+
+    assert run.evidence[0].ok is False
+    assert run.evidence[0].output.startswith("ERROR:")
 
 
 def test_rewoo_substitutes_hash_prefixed_evidence_placeholders() -> None:
@@ -404,6 +434,66 @@ def test_offload_resumed_run_never_calls_the_planner(tmp_path: Path) -> None:
     assert set(reloaded_results) == {"step1", "step2"}
 
 
+def test_offload_resume_reexecutes_a_failed_step_instead_of_skipping_it(tmp_path: Path) -> None:
+    # Start at 1 to represent the pre-crash attempt that already failed and
+    # produced the checkpointed "ERROR: ..." result below; the resumed run
+    # should make exactly one more call, which succeeds.
+    attempts = {"count": 1}
+
+    def flaky_lookup() -> str:
+        attempts["count"] += 1
+        if attempts["count"] == 1:
+            raise RuntimeError("transient outage")
+        return "sunny and clear"
+
+    def echo_weather(weather: str) -> str:
+        return f"itinerary uses: {weather}"
+
+    registry = ToolRegistry()
+    registry.register(
+        Tool(name="flaky_lookup", description="d", parameters={"type": "object", "properties": {}}, fn=flaky_lookup)
+    )
+    registry.register(
+        Tool(
+            name="echo_weather",
+            description="d",
+            parameters={
+                "type": "object",
+                "properties": {"weather": {"type": "string"}},
+                "required": ["weather"],
+            },
+            fn=echo_weather,
+        )
+    )
+    plan = Plan(
+        goal="plan with a flaky step",
+        steps=[
+            Step(id="step1", tool="flaky_lookup", args={}, depends_on=[]),
+            Step(id="step2", tool="echo_weather", args={"weather": "$step1"}, depends_on=["step1"]),
+        ],
+    )
+    state_path = tmp_path / "state.json"
+    # Simulate a crash that happened right after step1's failed attempt was
+    # checkpointed, before step2 ever ran.
+    save_state(
+        state_path,
+        plan,
+        {"step1": StepResult(step_id="step1", output="ERROR: transient outage", ok=False)},
+    )
+
+    provider = MockProvider([])  # resume never calls the planner
+    run = run_with_offload(provider, plan.goal, registry, state_path)
+
+    assert attempts["count"] == 2  # step1 was re-executed exactly once on resume
+    assert run.results["step1"].ok is True
+    assert run.results["step1"].output == "sunny and clear"
+    # the retried output, not the stale error text, must flow into step2
+    assert run.results["step2"].output == "itinerary uses: sunny and clear"
+
+    reloaded_plan, reloaded_results = load_state(state_path)
+    assert reloaded_results["step1"].ok is True
+
+
 # --- Subagent-per-subtask -------------------------------------------------
 
 
@@ -445,6 +535,32 @@ def test_substitute_args_replaces_only_known_placeholders() -> None:
     assert substituted["note"] == "weather is sunny today"
     assert substituted["nested"]["inner"] == "$missing stays"
     assert substituted["city"] == "Paris"
+
+
+def test_substitute_args_does_not_corrupt_a_prefix_id_collision() -> None:
+    # "step1" is a string-prefix of "step10"; a naive str.replace would
+    # substitute step1's output inside the "$step10" placeholder and leave
+    # a stray "0" behind.
+    results = {
+        "step1": StepResult(step_id="step1", output="ONE"),
+        "step10": StepResult(step_id="step10", output="TEN"),
+    }
+    args = {"solo": "$step10", "both": "$step1 then $step10"}
+    substituted = substitute_args(args, results)
+    assert substituted["solo"] == "TEN"
+    assert substituted["both"] == "ONE then TEN"
+
+
+def test_substitute_args_does_not_corrupt_hash_prefixed_id_collision() -> None:
+    # Same collision, but for ReWOO's "#E1" / "#E10" notation.
+    results = {
+        "E1": StepResult(step_id="E1", output="EV1"),
+        "E10": StepResult(step_id="E10", output="EV10"),
+    }
+    args = {"solo": "#E10", "both": "#E1 then #E10"}
+    substituted = substitute_args(args, results, prefix="#")
+    assert substituted["solo"] == "EV10"
+    assert substituted["both"] == "EV1 then EV10"
 
 
 def test_topological_waves_orders_a_diamond_dependency() -> None:

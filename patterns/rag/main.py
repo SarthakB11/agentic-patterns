@@ -86,7 +86,7 @@ def main() -> None:
 
     # 2. Naive dense RAG ----------------------------------------------------
     print("=== 2. Naive dense RAG (one embed-and-cosine lookup) ===")
-    naive_result = pipeline.run_naive_rag_demo()
+    naive_result = pipeline.run_naive_rag_demo(dense_index=dense_index, bm25_index=bm25_index, embedder=embedder)
     _print_answer(naive_result)
     print()
 
@@ -129,7 +129,7 @@ def main() -> None:
 
     # 6. Reranking -----------------------------------------------------------
     print("=== 6. Reranking: an LLM corrects a bag-of-words retriever's ordering ===")
-    rerank_query, before, after = rerank.run_rerank_demo()
+    rerank_query, before, after = rerank.run_rerank_demo(dense_index=dense_index, embedder=embedder)
     print(f"  query: {rerank_query}")
     print("  before rerank (dense order):")
     _print_ranking("dense", before)
@@ -139,7 +139,9 @@ def main() -> None:
 
     # 7a. Query transformation: multi-query --------------------------------
     print("=== 7a. Query transformation: multi-query expansion ===")
-    mq_query, sub_queries, mq_context, mq_answer = query_transform.run_multi_query_demo()
+    mq_query, sub_queries, mq_context, mq_answer = query_transform.run_multi_query_demo(
+        dense_index=dense_index, embedder=embedder
+    )
     print(f"  query: {mq_query}")
     print(f"  sub-queries: {sub_queries}")
     print(f"  fused context: {[c.id for c in mq_context]}")
@@ -149,7 +151,7 @@ def main() -> None:
 
     # 7b. Query transformation: HyDE ----------------------------------------
     print("=== 7b. Query transformation: HyDE (hypothetical document embedding) ===")
-    hyde_query, hypothetical, hyde_results = query_transform.run_hyde_demo()
+    hyde_query, hypothetical, hyde_results = query_transform.run_hyde_demo(dense_index=dense_index, embedder=embedder)
     print(f"  query: {hyde_query}")
     print(f"  hypothetical document: {hypothetical}")
     _print_ranking("hyde", hyde_results)
@@ -157,7 +159,7 @@ def main() -> None:
 
     # 8. Contextual retrieval ------------------------------------------------
     print("=== 8. Contextual retrieval: a blurb rescues a pronoun-orphaned chunk ===")
-    ctx_query, blurb, ctx_before, ctx_after = contextual.run_contextual_demo()
+    ctx_query, blurb, ctx_before, ctx_after = contextual.run_contextual_demo(chunks=chunks, embedder=embedder)
     print(f"  query: {ctx_query}")
     print(f"  generated blurb: {blurb!r}")
     print("  before (orphan chunk buried):")
@@ -168,7 +170,9 @@ def main() -> None:
 
     # 9a. Grading: sufficient-context gate (corrective RAG) -----------------
     print("=== 9a. Grading: sufficient-context gate widens a narrow fetch ===")
-    suff_query, narrow, narrow_verdict, wide, wide_verdict = grading.run_sufficiency_demo()
+    suff_query, narrow, narrow_verdict, wide, wide_verdict = grading.run_sufficiency_demo(
+        dense_index=dense_index, embedder=embedder
+    )
     print(f"  query: {suff_query}")
     print(f"  narrow fetch {[c.id for c in narrow]}: sufficient={narrow_verdict.sufficient} ({narrow_verdict.reasoning})")
     print(f"  widened fetch {[c.id for c in wide]}: sufficient={wide_verdict.sufficient} ({wide_verdict.reasoning})")
@@ -176,14 +180,14 @@ def main() -> None:
 
     # 9b. Grading: relevance threshold and the abstain path -----------------
     print("=== 9b. Grading: abstain when nothing clears the relevance threshold ===")
-    abstain_result = pipeline.run_abstain_demo()
+    abstain_result = pipeline.run_abstain_demo(dense_index=dense_index, bm25_index=bm25_index, embedder=embedder)
     _print_answer(abstain_result)
     assert abstain_result.answer.abstained
     print()
 
     # 10. Agentic RAG -----------------------------------------------------
     print("=== 10. Agentic RAG: retrieval as a tool, called in a loop ===")
-    agentic_result = agentic.run_agentic_rag_demo()
+    agentic_result = agentic.run_agentic_rag_demo(dense_index=dense_index, embedder=embedder)
     for line in agentic_result.transcript:
         print(f"  {line}")
     print(f"  citations: {agentic_result.answer.citations}")

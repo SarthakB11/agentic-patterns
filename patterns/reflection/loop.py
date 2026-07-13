@@ -172,7 +172,7 @@ def run_reflection_loop(
 
         if crit.score is not None and (best_score is None or crit.score > best_score):
             best_draft, best_score = current, crit.score
-        elif crit.score is None:
+        elif crit.score is None and best_score is None:
             best_draft = current
 
         threshold_hit = score_threshold is not None and crit.score is not None and crit.score >= score_threshold

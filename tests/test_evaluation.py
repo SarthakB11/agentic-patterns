@@ -179,6 +179,20 @@ def test_pairwise_fair_demo_agrees_across_orders_no_bias() -> None:
     assert result.position_bias_detected is False
 
 
+def test_pairwise_fair_demo_scripted_reasoning_matches_winner_slot() -> None:
+    """Each scripted judge response must describe its own WINNER slot as the
+    strong one, not the vague one. Regression test for a swapped-order
+    response whose prose called slot A vague while declaring WINNER: a."""
+    result = pairwise.run_pairwise_fair_demo()
+    for verdict in (result.order_ab, result.order_ba):
+        winner_label = {"a": "Candidate A", "b": "Candidate B"}.get(verdict.winner)
+        assert winner_label is not None
+        winner_idx = verdict.raw.index(winner_label)
+        sentence_end = verdict.raw.index(";", winner_idx)
+        winner_sentence = verdict.raw[winner_idx:sentence_end]
+        assert "vague" not in winner_sentence
+
+
 def test_pairwise_biased_demo_disagrees_across_orders_and_ties() -> None:
     result = pairwise.run_pairwise_biased_demo()
     assert result.winner == "tie"

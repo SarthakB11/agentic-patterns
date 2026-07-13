@@ -101,6 +101,36 @@ def test_semantic_embedder_is_deterministic() -> None:
     assert scores_a == scores_b
 
 
+def test_route_scores_embeds_route_utterances_once_across_calls() -> None:
+    from agentic_patterns import HashEmbedder
+
+    class CountingEmbedder:
+        """Wraps `HashEmbedder`, counting every `embed()` call it receives."""
+
+        def __init__(self) -> None:
+            self._inner = HashEmbedder()
+            self.calls = 0
+
+        def embed(self, texts: list[str]) -> list[list[float]]:
+            self.calls += 1
+            return self._inner.embed(texts)
+
+    registry = RouteRegistry(
+        [
+            Route(name="billing", description="d", utterances=["I was charged twice"]),
+            Route(name="technical", description="d", utterances=["the app crashes"]),
+        ]
+    )
+    embedder = CountingEmbedder()
+
+    semantic.route_scores("why was I billed", registry, embedder)
+    semantic.route_scores("why was I billed again", registry, embedder)
+
+    # One embed() call per route's utterances (2 routes) plus one per query
+    # text (2 calls), not one per route on every call (which would be 4).
+    assert embedder.calls == 4
+
+
 # --- LLM-classifier router ----------------------------------------------------
 
 
@@ -214,6 +244,28 @@ def test_make_provider_handler_returns_answer_on_success() -> None:
     provider = get_provider(script=["Here is your answer."])
     handler = fallback.make_provider_handler("bot", provider, "question")
     assert handler.call() == "Here is your answer."
+
+
+def test_make_provider_handler_converts_provider_exception_to_failure() -> None:
+    # An empty script makes the very first call() raise MockScriptExhausted,
+    # a real provider-side exception rather than a scripted refusal.
+    provider = get_provider(script=[])
+    handler = fallback.make_provider_handler("bot", provider, "question")
+    with pytest.raises(fallback.HandlerFailure):
+        handler.call()
+
+
+def test_run_fallback_chain_recovers_when_a_handler_provider_raises() -> None:
+    broken_provider = get_provider(script=[])
+    healthy_provider = get_provider(script=["Here is your answer."])
+    handlers = [
+        fallback.make_provider_handler("broken_bot", broken_provider, "question"),
+        fallback.make_provider_handler("healthy_bot", healthy_provider, "question"),
+    ]
+    decision = fallback.run_fallback_chain(handlers)
+    assert decision.route == "healthy_bot"
+    assert decision.attempts == 2
+    assert "broken_bot" in decision.metadata["errors"][0]
 
 
 # --- human escalation -----------------------------------------------------------

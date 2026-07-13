@@ -9,6 +9,7 @@ steps and a final solver can use it.
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -72,6 +73,20 @@ class StepResult:
     ok: bool = True
 
 
+def is_error_observation(output: str) -> bool:
+    """Return True if `output` is the "ERROR: ..." string a failed tool call produces.
+
+    `ToolRegistry.execute` catches exceptions raised by a tool and returns
+    `f"ERROR: {exc}"` instead of propagating them, so this string prefix is
+    the only signal an executor has that a step failed rather than
+    succeeded.
+
+    Args:
+        output: A tool call's raw string result.
+    """
+    return output.startswith("ERROR:")
+
+
 def substitute_args(
     args: dict[str, Any], results: dict[str, StepResult], prefix: str = "$"
 ) -> dict[str, Any]:
@@ -79,7 +94,12 @@ def substitute_args(
 
     Walks `args` recursively through nested dicts and lists. Any string
     value containing `f"{prefix}{step_id}"` for a step already in `results`
-    has that placeholder replaced with the step's output text.
+    has that placeholder replaced with the step's output text. Placeholders
+    are matched on exact boundaries: longer ids are tried before their
+    prefixes (so "$step10" is not partially consumed by a "$step1"
+    replacement) and a match is only accepted when it is not immediately
+    followed by another id character, so "$step1" inside "$step10" never
+    matches on its own.
 
     Args:
         args: A step's raw arguments, possibly containing placeholders.
@@ -87,13 +107,22 @@ def substitute_args(
         prefix: The placeholder marker. Most variants use "$" (e.g.
             "$step1"); ReWOO's own notation is "#" (e.g. "#E1").
     """
+    if not results:
+        pattern = None
+    else:
+        # Longest id first so "$step10" wins over "$step1" at the same
+        # position; the alternation tries branches in listed order.
+        ids_by_length = sorted(results, key=len, reverse=True)
+        alternation = "|".join(re.escape(f"{prefix}{step_id}") for step_id in ids_by_length)
+        pattern = re.compile(f"(?:{alternation})(?![A-Za-z0-9_])")
+
+    def replace(match: re.Match[str]) -> str:
+        step_id = match.group(0)[len(prefix) :]
+        return results[step_id].output
 
     def sub_value(value: Any) -> Any:
         if isinstance(value, str):
-            out = value
-            for step_id, result in results.items():
-                out = out.replace(f"{prefix}{step_id}", result.output)
-            return out
+            return value if pattern is None else pattern.sub(replace, value)
         if isinstance(value, dict):
             return {k: sub_value(v) for k, v in value.items()}
         if isinstance(value, list):

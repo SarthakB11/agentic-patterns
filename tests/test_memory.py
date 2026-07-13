@@ -12,7 +12,7 @@ from agentic_patterns import HashEmbedder, Message, MockProvider, Tool, ToolRegi
 from patterns.memory.assembler import assemble_context
 from patterns.memory.episodic import EpisodicMemory
 from patterns.memory.file_memory import FileMemoryStore
-from patterns.memory.memgpt import MemGPTMemory
+from patterns.memory.memgpt import DEMO_ARCHIVE_KEY, DEMO_ARCHIVE_TEXT, MemGPTMemory, run_memgpt_demo
 from patterns.memory.memory_tools import build_memory_toolset
 from patterns.memory.procedural import ProceduralMemory
 from patterns.memory.retrieval import RetrievalConfig, retrieve
@@ -84,6 +84,12 @@ def test_context_editing_drops_stale_tool_results_keeps_other_roles() -> None:
     assert len(tool_msgs) == 1
     assert tool_msgs[0].content == "obs2"
     assert len(edited) == 5  # only the stale tool message was removed
+
+
+def test_token_budget_fits() -> None:
+    budget = TokenBudget(limit=2)  # each Message content is a single "word" here
+    assert budget.fits([Message.user("aaaa"), Message.user("bbbb")]) is True
+    assert budget.fits([Message.user("aaaa"), Message.user("bbbb"), Message.user("cccc")]) is False
 
 
 def test_evict_to_budget_protects_leading_messages() -> None:
@@ -348,6 +354,36 @@ def test_memgpt_page_out_then_page_in_sequence_is_deterministic() -> None:
             registry.execute(call)
     assert memory.page_events == ["page_out(note)", "page_in(note)"]
     assert "archived note" in memory.main  # paged back into main context
+
+
+def test_memgpt_demo_archive_call_actually_leaves_main_context() -> None:
+    # Regression test: the scripted page_out call in run_memgpt_demo must
+    # reference a string that is genuinely present in main context at the
+    # moment of archiving, or MemGPTMemory.page_out's `if text in self.main`
+    # check silently no-ops and "archiving" never removes anything.
+    memory = MemGPTMemory(main_limit=30)
+    for entry in [
+        "User set up a us-west-2 Terraform deployment.",
+        "User confirmed the Terraform state bucket is versioned.",
+        DEMO_ARCHIVE_TEXT,
+        "User asked if the ryokan offers a late checkout.",
+    ]:
+        memory.append_main(entry, summarize=lambda old: "Condensed: Terraform deployment set up in us-west-2.")
+
+    assert DEMO_ARCHIVE_TEXT in memory.main  # the entry the demo will archive is really there
+
+    memory.page_out(DEMO_ARCHIVE_KEY, DEMO_ARCHIVE_TEXT)
+
+    assert DEMO_ARCHIVE_TEXT not in memory.main  # it actually left main context
+    assert memory.external[DEMO_ARCHIVE_KEY] == DEMO_ARCHIVE_TEXT  # and actually landed in external context
+
+
+def test_memgpt_demo_end_to_end_paging_round_trip() -> None:
+    mem = run_memgpt_demo()
+    assert mem.page_events == [f"page_out({DEMO_ARCHIVE_KEY})", f"page_in({DEMO_ARCHIVE_KEY})"]
+    assert mem.external[DEMO_ARCHIVE_KEY] == DEMO_ARCHIVE_TEXT
+    # paged back in by the recall step, so it ends up in main exactly once
+    assert mem.main.count(DEMO_ARCHIVE_TEXT) == 1
 
 
 # --- episodic memory ---------------------------------------------------------

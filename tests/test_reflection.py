@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import pytest
 
-from agentic_patterns import Message, MockProvider
+from agentic_patterns import MockProvider
 
 from patterns.reflection import generator_critic, reflexion, rubric, self_refine, tool_grounded
 from patterns.reflection.loop import Critique, parse_critique, run_reflection_loop
@@ -174,6 +174,17 @@ def test_loop_best_so_far_survives_a_regression() -> None:
     assert result.best_draft == "d2"
     assert result.final_draft == "d3"
     assert result.best_draft != result.final_draft
+
+
+def test_loop_scored_best_survives_a_later_unscored_round() -> None:
+    result = _scripted_loop(
+        drafts=["d1", "d2"],
+        critiques=["SCORE: 8\ngood", "no score in this critique"],
+        max_iterations=2,
+    )
+    assert result.best_score == 8.0
+    assert result.best_draft == "d1"
+    assert result.final_draft == "d2"
 
 
 def test_loop_empty_critique_stops_immediately_output_unchanged() -> None:

@@ -19,7 +19,7 @@ from dataclasses import dataclass
 from agentic_patterns import Message, Provider, ToolCall, ToolRegistry, get_provider
 
 from patterns.planning.parser import parse_plan
-from patterns.planning.plan import Plan, Step, StepResult, substitute_args
+from patterns.planning.plan import Plan, Step, StepResult, is_error_observation, substitute_args
 from patterns.planning.validator import validate_plan
 
 PLANNER_SYSTEM = (
@@ -96,7 +96,7 @@ def run_with_replanning(
         step = remaining.pop(0)
         args = substitute_args(step.args, results)
         output = registry.execute(ToolCall(id=step.id, name=step.tool, arguments=args))
-        failed = output.startswith("ERROR:")
+        failed = is_error_observation(output)
         invalidated = not failed and _invalidates(output)
 
         if failed or invalidated:
@@ -106,7 +106,7 @@ def run_with_replanning(
                 )
             replans += 1
             if invalidated:
-                result = StepResult(step_id=step.id, output=output)
+                result = StepResult(step_id=step.id, output=output, ok=not is_error_observation(output))
                 results[step.id] = result
                 ordered.append(result)
             completed_summary = "\n".join(f"- {r.step_id}: {r.output}" for r in ordered) or "(none yet)"
@@ -121,7 +121,7 @@ def run_with_replanning(
             remaining = list(revision.steps)
             continue
 
-        result = StepResult(step_id=step.id, output=output)
+        result = StepResult(step_id=step.id, output=output, ok=not is_error_observation(output))
         results[step.id] = result
         ordered.append(result)
 

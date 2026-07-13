@@ -64,16 +64,19 @@ def run_group_chat(
             so a manager that never stops cannot loop forever.
     """
     turns: list[ChatTurn] = []
-    transcript = f"Topic: {topic}\n(no turns yet)"
+    transcript = f"Topic: {topic}"
     for _ in range(max_turns):
-        decision = manager.complete([Message.user(transcript)], system=MANAGER_SYSTEM).content.strip()
+        # The placeholder line is only shown while no turns have happened
+        # yet; once real turns exist, they speak for themselves.
+        visible_transcript = transcript if turns else f"{transcript}\n(no turns yet)"
+        decision = manager.complete([Message.user(visible_transcript)], system=MANAGER_SYSTEM).content.strip()
         if decision.upper().startswith("STOP"):
             return GroupChatResult(turns=turns, stop_reason="manager_stopped")
         name = decision.split(":", 1)[1].strip() if ":" in decision else ""
         if name not in participants:
             raise ValueError(f"chat manager named an unknown participant: {decision!r}")
         reply = participants[name].complete(
-            [Message.user(f"Topic: {topic}\nTranscript so far:\n{transcript}")],
+            [Message.user(f"Topic: {topic}\nTranscript so far:\n{visible_transcript}")],
             system=f"You are {name} in a small working discussion. Speak in 1-2 sentences.",
         ).content
         turns.append(ChatTurn(name, reply))

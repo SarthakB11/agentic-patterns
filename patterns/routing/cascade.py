@@ -34,7 +34,7 @@ _WEAK_SIGNALS = ("i'm not sure", "i don't know", "unclear", "cannot determine", 
 _STRONG_SYSTEM = "You are a careful expert. Answer precisely and show the key reasoning step."
 _CHEAP_SYSTEM = "Answer briefly."
 
-# (question, minimum words needed for a good answer, tier a difficulty heuristic should pick)
+# (question, tier a difficulty heuristic should pick)
 _DIFFICULTY_DATASET: list[tuple[str, str]] = [
     ("What is the capital of France?", "cheap"),
     ("What year did the company IPO?", "cheap"),

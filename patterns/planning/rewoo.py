@@ -17,7 +17,7 @@ from dataclasses import dataclass
 from agentic_patterns import Message, Provider, ToolCall, ToolRegistry, get_provider
 
 from patterns.planning.parser import parse_plan
-from patterns.planning.plan import Plan, StepResult, substitute_args
+from patterns.planning.plan import Plan, StepResult, is_error_observation, substitute_args
 from patterns.planning.validator import validate_plan
 
 PLANNER_SYSTEM = (
@@ -67,7 +67,7 @@ def run_rewoo(provider: Provider, goal: str, registry: ToolRegistry) -> RewooRun
     for step in plan.steps:  # workers: pure tool execution, no model calls
         args = substitute_args(step.args, evidence, prefix="#")
         output = registry.execute(ToolCall(id=step.id, name=step.tool, arguments=args))
-        result = StepResult(step_id=step.id, output=output)
+        result = StepResult(step_id=step.id, output=output, ok=not is_error_observation(output))
         evidence[step.id] = result
         ordered.append(result)
 

@@ -15,7 +15,7 @@ import pytest
 from agentic_patterns import MockProvider, ToolCall, scripted_tool_call
 
 from patterns.human_in_the_loop import approval_gate, batched, escalation, plan_review, post_hoc, resume, risk_tier
-from patterns.human_in_the_loop.fake_tools import build_refund_registry
+from patterns.human_in_the_loop.fake_tools import build_refund_registry, build_support_ops_registry
 from patterns.human_in_the_loop.gate import (
     AuditLog,
     Decision,
@@ -26,6 +26,25 @@ from patterns.human_in_the_loop.gate import (
     counting_clock,
     run_gate,
 )
+
+# --- fake_tools.py: shared ledger schema --------------------------------
+
+
+def test_refund_registry_and_support_ops_registry_share_ledger_schema() -> None:
+    """`send_refund` must log the same entry shape no matter which registry ran it."""
+    refund_registry, refund_ledger = build_refund_registry()
+    ops_registry, ops_ledger = build_support_ops_registry()
+    call = ToolCall(id="call_1", name="send_refund", arguments={
+        "customer_id": "c-1", "amount_usd": 10.0, "reason": "test",
+    })
+
+    refund_registry.execute(call)
+    ops_registry.execute(call)
+
+    assert refund_ledger[0].keys() == ops_ledger[0].keys()
+    assert refund_ledger[0]["type"] == "refund"
+    assert ops_ledger[0]["type"] == "refund"
+
 
 # --- gate.py mechanics: the four decisions -----------------------------
 

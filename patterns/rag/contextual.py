@@ -57,34 +57,50 @@ def contextualize_chunk(document: Document, chunk: Chunk, provider: Provider) ->
 
 
 def build_contextual_index(
-    chunks: list[Chunk], documents_by_id: dict[str, Document], embedder: Embedder, provider: Provider
+    chunks: list[Chunk],
+    documents_by_id: dict[str, Document],
+    embedder: Embedder,
+    provider: Provider,
+    *,
+    blurb_chunk_ids: set[str] | None = None,
 ) -> tuple[DenseIndex, dict[str, str]]:
-    """Build a dense index where each chunk's embedding includes a context blurb.
+    """Build a dense index where chunks embed with a prepended context blurb.
 
     Args:
         chunks: Chunks to index.
         documents_by_id: Source documents keyed by id, for prompt context.
-        embedder: Embedder used on `blurb + chunk text`, not the chunk alone.
-        provider: `Provider` used to generate each chunk's blurb.
+        embedder: Embedder used on `blurb + chunk text` for blurbed chunks,
+            and on the chunk's raw text for any chunk left unblurbed.
+        provider: `Provider` used to generate each blurbed chunk's blurb.
+        blurb_chunk_ids: If given, only chunks whose id is in this set get a
+            model-written blurb; every other chunk embeds its raw text
+            unchanged. Defaults to blurbing every chunk, the realistic
+            contextual-retrieval setup.
 
     Returns:
         A tuple of the resulting `DenseIndex` (chunk text left unmodified for
-        display; only the embedded text changes) and a mapping from chunk id
-        to the blurb generated for it.
+        display; only the embedded text changes) and a mapping from each
+        blurbed chunk's id to the blurb generated for it.
     """
     blurbs: dict[str, str] = {}
     embedded_texts: list[str] = []
     for chunk in chunks:
-        document = documents_by_id[chunk.source_id]
-        blurb = contextualize_chunk(document, chunk, provider)
-        blurbs[chunk.id] = blurb
-        embedded_texts.append(f"{blurb} {chunk.text}")
+        if blurb_chunk_ids is None or chunk.id in blurb_chunk_ids:
+            document = documents_by_id[chunk.source_id]
+            blurb = contextualize_chunk(document, chunk, provider)
+            blurbs[chunk.id] = blurb
+            embedded_texts.append(f"{blurb} {chunk.text}")
+        else:
+            embedded_texts.append(chunk.text)
     vectors = embedder.embed(embedded_texts)
     return DenseIndex(chunks=list(chunks), vectors=vectors), blurbs
 
 
 def run_contextual_demo(
     provider: Provider | None = None,
+    *,
+    chunks: list[Chunk] | None = None,
+    embedder: Embedder | None = None,
 ) -> tuple[str, str, list[ScoredChunk], list[ScoredChunk]]:
     """Demonstrate a pronoun-orphaned chunk becoming findable once contextualized.
 
@@ -98,18 +114,24 @@ def run_contextual_demo(
     Args:
         provider: A `Provider` to drive the demo. Defaults to a
             `MockProvider` scripted with one contextual blurb.
+        chunks: The corpus chunks to pull distractors from. Built fresh with
+            `default_chunks` when omitted, so the demo still runs standalone
+            with no arguments.
+        embedder: Embedder used to embed the demo's chunk subset, before and
+            after contextualizing. Defaults to `agentic_patterns.get_embedder`.
 
     Returns:
         A tuple of the query, the generated blurb, the ranking before
         contextualization, and the ranking after.
     """
-    all_chunks = default_chunks()
+    all_chunks = chunks if chunks is not None else default_chunks()
     by_id = {chunk.id: chunk for chunk in all_chunks}
     orphan = Chunk(id="billing-faq#orphan", source_id="billing-faq", text=_ORPHAN_TEXT, start=213, end=309)
     distractors = [by_id["oncall-rotation#0"], by_id["billing-faq#0"], by_id["deploy-policy#0"], by_id["data-retention#0"]]
     demo_chunks = [*distractors, orphan]
 
-    embedder = get_embedder()
+    if embedder is None:
+        embedder = get_embedder()
     baseline_index = build_dense_index(demo_chunks, embedder)
     before = dense_retrieve(_CONTEXTUAL_DEMO_QUERY, baseline_index, embedder, top_k=len(demo_chunks))
 
@@ -120,10 +142,10 @@ def run_contextual_demo(
                 "engine that automatically credits unused plan time."
             ]
         )
-    blurb = contextualize_chunk(DOCUMENTS_BY_ID["billing-faq"], orphan, provider)
-    contextual_texts = [chunk.text for chunk in distractors] + [f"{blurb} {orphan.text}"]
-    vectors = embedder.embed(contextual_texts)
-    contextual_index = DenseIndex(chunks=demo_chunks, vectors=vectors)
+    contextual_index, blurbs = build_contextual_index(
+        demo_chunks, DOCUMENTS_BY_ID, embedder, provider, blurb_chunk_ids={orphan.id}
+    )
+    blurb = blurbs[orphan.id]
     after = dense_retrieve(_CONTEXTUAL_DEMO_QUERY, contextual_index, embedder, top_k=len(demo_chunks))
 
     return _CONTEXTUAL_DEMO_QUERY, blurb, before, after

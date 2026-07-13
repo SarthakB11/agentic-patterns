@@ -50,7 +50,7 @@ class PIIMatch:
 
 def detect_pii(text: str) -> list[PIIMatch]:
     """Find every PII span in `text`, in left-to-right order, without overlaps."""
-    matches: list[PIIMatch] = []
+    positioned: list[tuple[int, PIIMatch]] = []
     claimed: list[tuple[int, int]] = []
     counters: dict[str, int] = {}
 
@@ -62,9 +62,14 @@ def detect_pii(text: str) -> list[PIIMatch]:
             claimed.append(span)
             counters[category] = counters.get(category, 0) + 1
             placeholder = f"[PII_{category}_{counters[category]}]"
-            matches.append(PIIMatch(category=category, original=m.group(0), placeholder=placeholder))
-    matches.sort(key=lambda pm: text.index(pm.original))
-    return matches
+            positioned.append((span[0], PIIMatch(category=category, original=m.group(0), placeholder=placeholder)))
+    # Sort by each match's own start position, captured directly from the
+    # regex scan. Re-deriving the position with `text.index(pm.original)`
+    # would rescan the whole string per match (quadratic) and, for a value
+    # that recurs, would always resolve to its first occurrence, putting a
+    # later duplicate out of left-to-right order.
+    positioned.sort(key=lambda item: item[0])
+    return [match for _, match in positioned]
 
 
 def mask_pii(text: str) -> tuple[str, dict[str, str]]:

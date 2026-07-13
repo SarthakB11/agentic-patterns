@@ -67,10 +67,12 @@ class MultiServerHost:
 
     def register_into(self, registry: ToolRegistry) -> None:
         """Register every merged tool into `registry`, routed to its owning server."""
-        for merged_name, routed in self._routes.items():
+        for spec in self.merged_specs():
+            merged_name = str(spec["name"])
+            routed = self._routes[merged_name]
             call = make_bridge_fn(routed.client, routed.original_name)
             registry.register(
-                Tool(name=merged_name, description=str(routed.spec["description"]), parameters=dict(routed.spec["inputSchema"]), fn=call)  # type: ignore[arg-type]
+                Tool(name=merged_name, description=str(spec["description"]), parameters=dict(spec["inputSchema"]), fn=call)  # type: ignore[arg-type]
             )
 
     def route_of(self, merged_name: str) -> str:

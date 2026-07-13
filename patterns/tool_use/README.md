@@ -8,19 +8,22 @@ Use tool calling when the task needs information the model does not hold, exact 
 
 ## How this example works
 
-Every variant module builds a `ToolRegistry` and a scripted `MockProvider`, then drives them through the one shared engine in `loop.py`. The engine validates each proposed call against its tool's schema, executes valid calls (concurrently within a turn), turns both validation failures and raised exceptions into observations, and stops when the model returns plain text or an iteration cap is hit.
+Every variant module builds a `ToolRegistry` and a scripted `MockProvider`, then drives them through the one shared engine in `loop.py`. The engine rejects any call to a tool that was not in this turn's offered specs, validates the rest against their tool's schema, executes valid calls (concurrently within a turn), turns rejections, validation failures, and raised exceptions into observations, and stops when the model returns plain text or an iteration cap is hit.
 
 ```mermaid
 flowchart TD
     A[Call the model with history + tool specs] --> B{Response has tool calls?}
     B -->|no| Z1[Return final text answer]
-    B -->|yes| C[For each call: is the tool registered?]
+    B -->|yes| C0{Was this tool offered this turn?}
+    C0 -->|no, offered_specs narrowed it out| D0[Observation: tool not offered]
+    C0 -->|yes| C[Is the tool registered?]
     C -->|no| D1[Observation: unknown tool]
     C -->|yes| E{Arguments valid against schema?}
     E -->|no, repair budget left| D2[Observation: invalid arguments, repair requested]
     E -->|no, repair budget exhausted| D3[Observation: validation failed, terminal]
     E -->|yes| F[Execute concurrently; exception becomes an observation]
-    D1 --> G[Append every call + observation to history]
+    D0 --> G[Append every call + observation to history]
+    D1 --> G
     D2 --> G
     D3 --> G
     F --> G

@@ -264,6 +264,27 @@ def test_group_chat_raises_on_an_unknown_participant_name() -> None:
         group_chat.run_group_chat(manager, participants, "topic")
 
 
+def test_group_chat_placeholder_only_appears_before_the_first_turn() -> None:
+    """The "(no turns yet)" placeholder must not linger once real turns exist,
+    or every later prompt would misrepresent an active discussion as empty.
+    """
+    manager = MockProvider(script=["NEXT: engineer", "NEXT: engineer", "STOP"])
+    engineer = MockProvider(script=["first point", "second point"])
+    result = group_chat.run_group_chat(manager, {"engineer": engineer}, "topic")
+
+    assert len(result.turns) == 2
+    manager_prompts = [call["messages"][0].content for call in manager.calls]
+    assert "(no turns yet)" in manager_prompts[0]
+    assert "(no turns yet)" not in manager_prompts[1]
+    assert "(no turns yet)" not in manager_prompts[2]
+    assert "first point" in manager_prompts[1]
+
+    engineer_prompts = [call["messages"][0].content for call in engineer.calls]
+    assert "(no turns yet)" in engineer_prompts[0]
+    assert "(no turns yet)" not in engineer_prompts[1]
+    assert "first point" in engineer_prompts[1]
+
+
 # --- debate.py: converge, or fall back to majority at the round cap -------
 
 

@@ -7,7 +7,15 @@ no API key.
 
 from __future__ import annotations
 
-from agentic_patterns import HashEmbedder, Message, ToolCall, ToolRegistry, get_provider, scripted_tool_call
+from agentic_patterns import (
+    Completion,
+    HashEmbedder,
+    Message,
+    ToolCall,
+    ToolRegistry,
+    get_provider,
+    scripted_tool_call,
+)
 
 from patterns.tool_use import (
     code_execution,
@@ -216,6 +224,74 @@ def test_forced_choice_named_violation_when_wrong_tool_called() -> None:
     else:
         raise AssertionError("expected ToolChoiceViolation")
     forced_choice.assert_tool_choice_satisfied(calls, "get_weather")  # does not raise
+
+
+# --- offered_specs narrowing must gate execution, not just display ---------
+
+
+def test_call_to_unoffered_tool_is_not_executed() -> None:
+    """A call naming a registered tool outside offered_specs must not run.
+
+    Regression test for the loop resolving calls against the full registry
+    even when offered_specs narrowed what the model was shown: the model
+    here "sees" only convert_currency but calls get_weather anyway, which
+    must come back as a not-offered error instead of a real observation.
+    """
+    registry = build_registry()
+    provider = get_provider(
+        script=[
+            scripted_tool_call("get_weather", {"city": "Tokyo"}),
+            "Could not use get_weather; it was not offered this turn.",
+        ]
+    )
+    messages = [Message.user("What's the weather in Tokyo?")]
+    convert_currency_only = [spec for spec in registry.specs() if spec["name"] == "convert_currency"]
+
+    result = run_tool_loop(
+        provider, registry, messages, system=SYSTEM_PROMPT, offered_specs=convert_currency_only, max_iterations=2
+    )
+
+    call = result.rounds[0].calls[0]
+    assert call.outcome == "not_offered"
+    assert call.observation == "ERROR: tool not offered this turn"
+    assert "Tokyo" not in call.observation  # the real get_weather observation never ran
+
+
+# --- duplicate call ids within one round must not collide -------------------
+
+
+def test_duplicate_call_ids_in_one_round_each_get_their_own_observation() -> None:
+    """Two calls sharing an id in one completion must both produce records.
+
+    Regression test for per-round records being keyed by call.id in a dict:
+    two scripted tool calls that both default to "call_1" used to silently
+    drop the first observation and duplicate the second.
+    """
+    registry = build_registry()
+    duplicate_id_completion = Completion(
+        tool_calls=[
+            ToolCall(id="call_1", name="get_weather", arguments={"city": "Tokyo"}),
+            ToolCall(id="call_1", name="get_weather", arguments={"city": "Paris"}),
+        ],
+        stop_reason="tool_use",
+    )
+    provider = get_provider(
+        script=[
+            duplicate_id_completion,
+            "Tokyo is 18C and Paris is 21C.",
+        ]
+    )
+    messages = [Message.user("What's the weather in Tokyo and Paris?")]
+
+    result = run_tool_loop(provider, registry, messages, system=SYSTEM_PROMPT, max_iterations=2)
+
+    calls = result.rounds[0].calls
+    assert len(calls) == 2
+    assert [c.call.arguments["city"] for c in calls] == ["Tokyo", "Paris"]
+    assert "Tokyo" in calls[0].observation
+    assert "Paris" in calls[1].observation
+    tool_messages = [m for m in result.history if m.role == "tool"]
+    assert len(tool_messages) == 2
 
 
 # --- structured-output-as-tool ---------------------------------------------

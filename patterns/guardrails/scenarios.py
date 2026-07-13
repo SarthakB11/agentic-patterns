@@ -3,8 +3,9 @@
 Kept separate from `pipeline.py` so the pipeline mechanics stay small and
 the scripted conversations for each scenario stay easy to scan in one
 place: input guards blocking a request before the model runs, PII masking
-round-tripping through a model call, the JSON schema guard's reask loop
-both succeeding and exhausting its budget, and the moderation guard
+round-tripping through a model call, PII redaction on a reply that
+surfaces personal data of its own accord, the JSON schema guard's reask
+loop both succeeding and exhausting its budget, and the moderation guard
 refraining an unsafe draft.
 """
 
@@ -15,7 +16,7 @@ from agentic_patterns import get_provider
 from patterns.guardrails.core import Tripwire
 from patterns.guardrails.input_guards import LengthGuard, PromptInjectionGuard, TopicalAllowlistGuard
 from patterns.guardrails.output_guards import JSONSchemaGuard, ModerationGuard
-from patterns.guardrails.pii import PIIMaskGuard, unmask_pii
+from patterns.guardrails.pii import PIIMaskGuard, PIIRedactGuard, unmask_pii
 from patterns.guardrails.pipeline import PipelineResult, run_guarded
 
 _TRIAGE_SCHEMA: dict[str, object] = {
@@ -90,6 +91,32 @@ def run_pii_masked_demo() -> PipelineResult:
     print(f"raw email reached the model: {'jane.doe@example.com' in sent}")
     print(f"model replied: {result.value}")
     print(f"shown to the user, unmasked: {unmask_pii(result.value, guard.placeholder_map)}")
+
+    return result
+
+
+def run_pii_redact_demo() -> PipelineResult:
+    """Redact PII the model surfaces in its own reply before it reaches the user.
+
+    Unlike `run_pii_masked_demo`, no PII enters through the user's turn
+    here; the model itself volunteers a colleague's contact details in its
+    answer, and `PIIRedactGuard` catches that on the way out.
+
+    Returns:
+        The pipeline result, whose `value` has every detected PII span
+        irreversibly replaced with "[REDACTED]".
+    """
+    raw_reply = "Sure, our on-call engineer for this account is jane.doe@example.com or 415-555-0199."
+    provider = get_provider(script=[raw_reply])
+    request = "Who should I contact about this outage?"
+
+    result = run_guarded(provider, request, output_guards=[PIIRedactGuard()])
+
+    print("=== PII redaction: PII the model volunteers in its reply never reaches the user ===")
+    print(f"user:  {request}")
+    print(f"model said: {raw_reply}")
+    print(f"shown to the user: {result.value}")
+    print(f"raw PII reached the user: {'jane.doe@example.com' in str(result.value)}")
 
     return result
 

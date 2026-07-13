@@ -15,9 +15,11 @@ over loopback HTTP instead of pipes.
 
 from __future__ import annotations
 
+import os
 import selectors
 import subprocess
 import sys
+import time
 from typing import Any
 
 from patterns.mcp.jsonrpc import JSONRPCDecodeError, decode_line, encode_line
@@ -70,12 +72,13 @@ class StdioClientTransport:
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
-            text=True,
-            bufsize=1,  # line-buffered, required for prompt request/response turnaround
+            bufsize=0,  # unbuffered: `receive` does its own line buffering, see below
         )
         self._selector = selectors.DefaultSelector()
         assert self._proc.stdout is not None
+        self._stdout_fd = self._proc.stdout.fileno()
         self._selector.register(self._proc.stdout, selectors.EVENT_READ)
+        self._read_buffer = b""
 
     @property
     def pid(self) -> int:
@@ -89,11 +92,22 @@ class StdioClientTransport:
     def send(self, message: dict[str, Any]) -> None:
         """Encode and write one message to the server's stdin, then flush."""
         assert self._proc.stdin is not None
-        self._proc.stdin.write(encode_line(message))
+        self._proc.stdin.write(encode_line(message).encode("utf-8"))
         self._proc.stdin.flush()
 
     def receive(self, timeout: float) -> dict[str, Any]:
         """Read and decode the next line from the server's stdout.
+
+        Maintains its own byte buffer instead of relying solely on a
+        `select()` before every read: a server that writes two messages
+        back to back (a notification immediately followed by a response,
+        which is exactly the sequence `MCPClient.call_tool` loops to
+        tolerate) can land both in one OS-level read, leaving the second
+        message sitting in this buffer with no further fd activity for
+        `select()` to report. Each call checks the buffer for an
+        already-complete line before waiting on the socket, so a buffered
+        second message is returned immediately rather than spuriously
+        timing out.
 
         Args:
             timeout: Seconds to wait for a line before giving up.
@@ -103,19 +117,23 @@ class StdioClientTransport:
             TransportClosedError: The server closed stdout (process exited).
             JSONRPCDecodeError: The line was not a valid JSON-RPC message.
         """
-        ready = self._selector.select(timeout=timeout)
-        if not ready:
-            raise TransportTimeoutError(f"no response from server within {timeout}s")
-        assert self._proc.stdout is not None
-        line = self._proc.stdout.readline()
-        if line == "":
-            raise TransportClosedError("server closed its stdout")
-        return decode_line(line)
-
-    def stderr_text(self) -> str:
-        """Drain and return whatever the server has logged to stderr so far."""
-        assert self._proc.stderr is not None
-        return self._proc.stderr.read() if self._proc.stderr.readable() else ""
+        deadline = time.monotonic() + timeout
+        while True:
+            newline_at = self._read_buffer.find(b"\n")
+            if newline_at != -1:
+                raw_line = self._read_buffer[: newline_at + 1]
+                self._read_buffer = self._read_buffer[newline_at + 1 :]
+                return decode_line(raw_line.decode("utf-8"))
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise TransportTimeoutError(f"no response from server within {timeout}s")
+            ready = self._selector.select(timeout=remaining)
+            if not ready:
+                continue  # loop back; the deadline check above will raise once it truly expires
+            chunk = os.read(self._stdout_fd, 65536)
+            if chunk == b"":
+                raise TransportClosedError("server closed its stdout")
+            self._read_buffer += chunk
 
     def close(self, wait_seconds: float = 2.0) -> None:
         """Shut down the server cleanly: close stdin, wait, then escalate.

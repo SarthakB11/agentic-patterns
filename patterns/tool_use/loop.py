@@ -19,6 +19,13 @@ Unknown-tool policy: a call naming a tool that is not registered becomes an
 raising. That mirrors how a raised exception from a real tool is handled,
 and keeps a single hallucinated name from crashing an otherwise-recoverable
 run.
+
+Not-offered policy: when `offered_specs` narrows what the model was shown
+this turn (`tool_search.py`'s retrieval subset, `forced_choice.py`'s named
+or empty choice), a call naming a tool that is registered but was not in
+that subset never executes. It becomes an "ERROR: tool not offered this
+turn" observation instead, the same way an unknown tool does, so a model
+that ignores the narrowing cannot reach a tool the app chose not to expose.
 """
 
 from __future__ import annotations
@@ -84,7 +91,7 @@ class CallRecord:
     Attributes:
         call: The `ToolCall` the model requested.
         observation: The string fed back to the model for this call.
-        outcome: One of "ok", "tool_error", "unknown_tool",
+        outcome: One of "ok", "tool_error", "unknown_tool", "not_offered",
             "repair_requested", or "validation_failed".
     """
 
@@ -136,14 +143,19 @@ def run_tool_loop(
 
     Args:
         provider: The model to drive. `MockProvider` in every demo here.
-        registry: Tools available for execution. Always authoritative for
-            what can run, independent of `offered_specs`.
+        registry: Tools available for execution. When `offered_specs` is
+            provided, only the tools named in it may actually execute; a
+            call to a registered tool outside that subset is turned into a
+            not-offered error observation instead of running.
         messages: Conversation so far, not including the system prompt.
         system: System prompt passed straight through to the provider.
         offered_specs: Tool specs shown to the model this run. Defaults to
-            `registry.specs()` (every registered tool). Pass a filtered or
-            empty list to emulate a provider's `tool_choice` (see
-            `forced_choice.py`) without changing what the registry can run.
+            `registry.specs()` (every registered tool, and every registered
+            tool remains executable). Pass a filtered or empty list to
+            emulate a provider's `tool_choice` (see `forced_choice.py`) or
+            retrieval-based selection (see `tool_search.py`); calls to tools
+            outside that narrowed list will not execute even though the
+            registry still knows them.
         max_iterations: Maximum number of model round trips before the loop
             gives up and returns with stop_reason="max_iterations".
         retry_limit: Maximum number of invalid-argument repair turns granted
@@ -170,44 +182,50 @@ def run_tool_loop(
         if not completion.tool_calls:
             return ToolLoopResult(completion.content, rounds, history, "stop")
 
-        order: list[str] = []
-        resolved: dict[str, CallRecord] = {}
-        pending: list[tuple[ToolCall, Tool]] = []
+        # Keyed by position in completion.tool_calls, not by call.id: two
+        # calls in one turn can share an id (e.g. a scripted default), and
+        # an id-keyed map would silently drop one of them.
+        offered_names = None if offered_specs is None else {spec["name"] for spec in offered_specs}
+        resolved: dict[int, CallRecord] = {}
+        pending: list[tuple[int, ToolCall, Tool]] = []
 
-        for call in completion.tool_calls:
-            order.append(call.id)
+        for position, call in enumerate(completion.tool_calls):
+            if offered_names is not None and call.name not in offered_names:
+                resolved[position] = CallRecord(call, "ERROR: tool not offered this turn", "not_offered")
+                continue
+
             try:
                 tool = registry.get(call.name)
             except KeyError as exc:
-                resolved[call.id] = CallRecord(call, f"ERROR: {exc}", "unknown_tool")
+                resolved[position] = CallRecord(call, f"ERROR: {exc}", "unknown_tool")
                 continue
 
             if validate:
                 errors = validate_arguments(tool.parameters, call.arguments)
                 if errors:
                     if repairs_used >= retry_limit:
-                        resolved[call.id] = CallRecord(
+                        resolved[position] = CallRecord(
                             call,
                             "ERROR: invalid arguments and repair budget exhausted: " + "; ".join(errors),
                             "validation_failed",
                         )
                     else:
                         repairs_used += 1
-                        resolved[call.id] = CallRecord(
+                        resolved[position] = CallRecord(
                             call, "ERROR: invalid arguments: " + "; ".join(errors), "repair_requested"
                         )
                     continue
 
-            pending.append((call, tool))
+            pending.append((position, call, tool))
 
         if pending:
             with ThreadPoolExecutor(max_workers=len(pending)) as pool:
-                observations = list(pool.map(lambda pair: registry.execute(pair[0]), pending))
-            for (call, _tool), observation in zip(pending, observations):
+                observations = list(pool.map(lambda item: registry.execute(item[1]), pending))
+            for (position, call, _tool), observation in zip(pending, observations):
                 outcome = "tool_error" if observation.startswith("ERROR:") else "ok"
-                resolved[call.id] = CallRecord(call, observation, outcome)
+                resolved[position] = CallRecord(call, observation, outcome)
 
-        round_calls = [resolved[call_id] for call_id in order]
+        round_calls = [resolved[position] for position in range(len(completion.tool_calls))]
         for record in round_calls:
             history.append(Message.tool(record.call.id, record.observation))
         rounds.append(RoundRecord(round_index, round_calls))

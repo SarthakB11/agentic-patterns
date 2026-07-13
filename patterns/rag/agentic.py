@@ -140,7 +140,12 @@ def run_agentic_rag(
     return AgenticRagResult(transcript=transcript, rounds_used=max_rounds, answer=GroundedAnswer(answer=ABSTAIN_ANSWER, abstained=True))
 
 
-def run_agentic_rag_demo(provider: Provider | None = None) -> AgenticRagResult:
+def run_agentic_rag_demo(
+    provider: Provider | None = None,
+    *,
+    dense_index: DenseIndex | None = None,
+    embedder: Embedder | None = None,
+) -> AgenticRagResult:
     """Demonstrate the agentic loop broadening a search that came back incomplete.
 
     The demo question needs two facts that live in two different documents:
@@ -154,12 +159,20 @@ def run_agentic_rag_demo(provider: Provider | None = None) -> AgenticRagResult:
         provider: A `Provider` to drive the demo. Defaults to a
             `MockProvider` scripted with a broad search, a narrower
             follow-up search, and a final two-citation answer.
+        dense_index: A prebuilt `DenseIndex` over the sample corpus. Built
+            fresh with `embedder` when omitted, so the demo still runs
+            standalone with no arguments.
+        embedder: Embedder the search tool uses, and for building
+            `dense_index` when it is not supplied. Defaults to
+            `agentic_patterns.get_embedder`.
 
     Returns:
         The `AgenticRagResult` for the demo query.
     """
-    embedder = get_embedder()
-    dense_index = build_dense_index(default_chunks(), embedder)
+    if embedder is None:
+        embedder = get_embedder()
+    if dense_index is None:
+        dense_index = build_dense_index(default_chunks(), embedder)
     if provider is None:
         provider = get_provider(
             script=[

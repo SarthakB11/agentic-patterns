@@ -22,11 +22,11 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from agentic_patterns import Message, Provider, get_embedder, get_provider
+from agentic_patterns import Embedder, Message, Provider, get_embedder, get_provider
 
 from patterns.rag.chunking import Chunk, ScoredChunk
 from patterns.rag.corpus import default_chunks
-from patterns.rag.dense import build_dense_index, dense_retrieve
+from patterns.rag.dense import DenseIndex, build_dense_index, dense_retrieve
 
 _SUFFICIENCY_DEMO_QUERY = "What is the refund window and what is the SEV1 escalation window, together?"
 
@@ -103,6 +103,9 @@ def grade_sufficient_context(query: str, chunks: list[Chunk], provider: Provider
 
 def run_sufficiency_demo(
     provider: Provider | None = None,
+    *,
+    dense_index: DenseIndex | None = None,
+    embedder: Embedder | None = None,
 ) -> tuple[str, list[Chunk], ContextSufficiency, list[Chunk], ContextSufficiency]:
     """Demonstrate the corrective-RAG pattern: grade, widen, regrade.
 
@@ -116,16 +119,24 @@ def run_sufficiency_demo(
         provider: A `Provider` to drive the demo. Defaults to a
             `MockProvider` scripted with an insufficient verdict, then a
             sufficient one after widening.
+        dense_index: A prebuilt `DenseIndex` over the sample corpus. Built
+            fresh with `embedder` when omitted, so the demo still runs
+            standalone with no arguments.
+        embedder: Embedder for query encoding, and for building
+            `dense_index` when it is not supplied. Defaults to
+            `agentic_patterns.get_embedder`.
 
     Returns:
         A tuple of the query, the narrow chunk set, its verdict, the widened
         chunk set, and its verdict.
     """
-    embedder = get_embedder()
-    index = build_dense_index(default_chunks(), embedder)
+    if embedder is None:
+        embedder = get_embedder()
+    if dense_index is None:
+        dense_index = build_dense_index(default_chunks(), embedder)
 
-    narrow = [sc.chunk for sc in dense_retrieve(_SUFFICIENCY_DEMO_QUERY, index, embedder, top_k=2)]
-    wide = [sc.chunk for sc in dense_retrieve(_SUFFICIENCY_DEMO_QUERY, index, embedder, top_k=4)]
+    narrow = [sc.chunk for sc in dense_retrieve(_SUFFICIENCY_DEMO_QUERY, dense_index, embedder, top_k=2)]
+    wide = [sc.chunk for sc in dense_retrieve(_SUFFICIENCY_DEMO_QUERY, dense_index, embedder, top_k=4)]
 
     if provider is None:
         provider = get_provider(

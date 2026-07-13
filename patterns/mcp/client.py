@@ -155,9 +155,15 @@ class MCPClient:
         """Call a tool and return its result: `{"content": [...], "isError": bool}`.
 
         If the server sends a `sampling/createMessage` request back before
-        answering, this loop handles it with `on_sampling_request` (raising
-        if none was given) and then keeps waiting for the original response,
-        so one `timeout` budget covers the whole exchange.
+        answering, this loop hands it to `on_sampling_request` and replies
+        with that handler's result. If the server capability was not
+        offered, or no `on_sampling_request` was given, the request is
+        answered with a JSON-RPC `METHOD_NOT_FOUND` error rather than
+        raising on the client side; the server sees a normal protocol
+        refusal (see `sampling.py` for a server that turns that refusal
+        into an `isError: true` tool result) and this loop keeps waiting for
+        the original `tools/call` response, so one `timeout` budget covers
+        the whole exchange.
 
         Raises:
             MCPProtocolError: The tool name is unknown, or another

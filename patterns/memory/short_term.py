@@ -136,7 +136,7 @@ def evict_to_budget(messages: list[Message], budget: TokenBudget, protected: int
         protected: Number of leading messages exempt from eviction.
     """
     kept = list(messages)
-    while budget.total(kept) > budget.limit and len(kept) > protected:
+    while not budget.fits(kept) and len(kept) > protected:
         del kept[protected]
     return kept
 

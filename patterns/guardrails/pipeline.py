@@ -15,13 +15,21 @@ rather than around a single completion and get their own demos in
    in place. A `RETRY` failure feeds the guard's message back to the model
    as a new turn and calls it again, bounded by `max_retries`. A `REFRAIN`
    failure stops immediately and returns the fallback, never the unsafe
-   value. `EXCEPTION` and `TRIPWIRE` propagate out of `run_guard` itself.
-4. Once every output guard passes (or was fixed), return the validated
-   value.
+   value. `EXCEPTION` and `TRIPWIRE` propagate out of `run_guard` itself. A
+   `NOOP` or `FILTER` failure is logged and the pipeline moves on to the
+   next guard with the guard's own value (unchanged, for `NOOP`), exactly
+   as `run_guard` reports it, but that guard's failure is remembered for
+   the round.
+4. Once every output guard in the round has run: if every one of them
+   passed or was `FIX`ed, return the validated value. If any guard failed
+   with `NOOP` or `FILTER` and was never fixed, the round cannot be called
+   validated, so the pipeline returns the safe fallback with stop_reason
+   `"output_guard_failed"` instead of the unresolved value.
 
 Fail-closed applies at every exit: the only way this function returns
 `passed=True` is that every guard in `output_guards` reported a pass or a
-deterministic fix on the same round. Exhausting the retry budget always
+deterministic fix on the same round. Exhausting the retry budget, or
+finishing a round with an unresolved `NOOP`/`FILTER` failure, always
 returns the fallback, never the last unvalidated response.
 """
 
@@ -44,8 +52,11 @@ class PipelineResult:
         value: The final value: the validated response when `passed` is
             True, otherwise the fallback value.
         retries: How many reask round trips were used.
-        stop_reason: One of "validated", "input_blocked", "refrained", or
-            "retries_exhausted".
+        stop_reason: One of "validated", "input_blocked", "refrained",
+            "retries_exhausted", or "output_guard_failed" (an output guard
+            failed with `OnFail.NOOP` or `OnFail.FILTER`, an action that
+            neither fixes the value nor stops the pipeline outright, so the
+            round finished without every guard reporting a pass or a fix).
         log: The full decision log for this run, for audit.
     """
 
@@ -102,6 +113,7 @@ def run_guarded(
         current: Any = completion.content
         needs_retry = False
         retry_reason = ""
+        unresolved_failure = False
 
         for guard in output_guards:
             result = run_guard(guard, current, log)
@@ -111,11 +123,20 @@ def run_guarded(
                 break
             if not result.passed and result.action == OnFail.REFRAIN:
                 return PipelineResult(passed=False, value=fallback, retries=retries, stop_reason="refrained", log=log)
+            if not result.passed and result.action != OnFail.FIX:
+                # NOOP or FILTER: log the failure and continue with the
+                # guard's value, but a round containing this cannot be
+                # reported as a full pass.
+                unresolved_failure = True
             # FIX, NOOP, FILTER, or an outright pass: adopt the guard's
             # (possibly transformed) value and move on to the next guard.
             current = result.value
 
         if not needs_retry:
+            if unresolved_failure:
+                return PipelineResult(
+                    passed=False, value=fallback, retries=retries, stop_reason="output_guard_failed", log=log
+                )
             return PipelineResult(passed=True, value=current, retries=retries, stop_reason="validated", log=log)
 
         if retries >= max_retries:

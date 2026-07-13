@@ -10,13 +10,15 @@ was sent to the model.
 
 from __future__ import annotations
 
+import sys
+
 import pytest
 
 from agentic_patterns import Message, MockProvider, ToolRegistry, scripted_tool_call
 
 from patterns.mcp import bridge, http_transport, jsonrpc, multi_server, sampling, server, server_data
 from patterns.mcp.client import MCPClient, MCPProtocolError
-from patterns.mcp.transport import TransportTimeoutError
+from patterns.mcp.transport import StdioClientTransport, TransportTimeoutError
 
 # --- jsonrpc codec -----------------------------------------------------
 
@@ -49,6 +51,22 @@ def test_message_shape_helpers() -> None:
     assert jsonrpc.is_request(request) and not jsonrpc.is_notification(request) and not jsonrpc.is_response(request)
     assert jsonrpc.is_notification(notification) and not jsonrpc.is_request(notification)
     assert jsonrpc.is_response(response) and not jsonrpc.is_request(response)
+
+
+def test_is_response_rejects_neither_result_nor_error() -> None:
+    """A response must carry `result` xor `error`; a bare id+jsonrpc envelope is neither."""
+    malformed = {"jsonrpc": "2.0", "id": 1}
+    assert not jsonrpc.is_response(malformed)
+
+
+def test_is_response_rejects_both_result_and_error() -> None:
+    malformed = {"jsonrpc": "2.0", "id": 1, "result": {}, "error": {"code": -1, "message": "x"}}
+    assert not jsonrpc.is_response(malformed)
+
+
+def test_is_response_accepts_error_only() -> None:
+    error_response = jsonrpc.build_error(1, jsonrpc.METHOD_NOT_FOUND, "nope")
+    assert jsonrpc.is_response(error_response)
 
 
 # --- server dispatch (in-process, no subprocess) ------------------------
@@ -110,6 +128,36 @@ def test_server_data_read_resource_text_and_blob() -> None:
     assert text[0]["text"] == server_data.NOTES["todo"]
     blob = server_data.read_resource("asset://logo")
     assert "blob" in blob[0] and blob[0]["mimeType"] == "image/png"
+
+
+# --- stdio transport --------------------------------------------------
+
+
+def test_stdio_transport_receive_survives_notification_then_response_in_one_write() -> None:
+    """Regression: a notification immediately followed by a response, written
+    to the child's stdout in a single flush (so both lines can land in one
+    OS-level read), must not strand the second message behind a `select()`
+    that has nothing new to report. This is exactly the sequence
+    `MCPClient.call_tool` loops to tolerate.
+    """
+    notification = jsonrpc.encode_line(jsonrpc.build_notification("notifications/progress", {"stage": "working"}))
+    response = jsonrpc.encode_line(jsonrpc.build_response("cli-1", {"ok": True}))
+    script = (
+        "import sys\n"
+        "sys.stdin.readline()\n"
+        f"sys.stdout.write({notification + response!r})\n"
+        "sys.stdout.flush()\n"
+    )
+    transport = StdioClientTransport([sys.executable, "-c", script])
+    try:
+        transport.send(jsonrpc.build_request("cli-1", "ping"))
+        first = transport.receive(timeout=2.0)
+        assert jsonrpc.is_notification(first)
+        second = transport.receive(timeout=2.0)
+        assert second["id"] == "cli-1"
+        assert second["result"] == {"ok": True}
+    finally:
+        transport.close()
 
 
 # --- client, real server subprocess --------------------------------------
@@ -279,6 +327,20 @@ def test_multi_server_collision_namespaces_both_sides() -> None:
         host.shutdown()
 
 
+def test_multi_server_merged_specs_matches_merged_names_and_feeds_register_into() -> None:
+    """`merged_specs` is what `register_into` builds its registrations from;
+    its names must line up exactly with `merged_names`.
+    """
+    host = multi_server.MultiServerHost()
+    host.add_server("alpha", MCPClient(client_name="alpha"))
+    host.add_server("beta", MCPClient(client_name="beta"))
+    try:
+        specs = host.merged_specs()
+        assert {str(spec["name"]) for spec in specs} == set(host.merged_names())
+    finally:
+        host.shutdown()
+
+
 def test_multi_server_routes_call_to_correct_connection() -> None:
     host = multi_server.MultiServerHost()
     host.add_server("alpha", MCPClient(client_name="alpha"))
@@ -307,6 +369,25 @@ def test_sampling_round_trip_with_capability_offered() -> None:
     assert "milk" in accepted["content"][0]["text"].lower() or "errands" in accepted["content"][0]["text"].lower()
     assert refused["isError"] is True
     assert "sampling" in refused["content"][0]["text"].lower()
+
+
+def test_sampling_request_without_handler_is_answered_method_not_found() -> None:
+    """A client that offers the `sampling` capability but calls `call_tool`
+    without `on_sampling_request` does not raise; it answers the server's
+    `sampling/createMessage` request with a JSON-RPC `METHOD_NOT_FOUND`
+    error and keeps waiting, so the server sees a protocol refusal and the
+    tool call itself comes back as `isError: true`.
+    """
+    client = MCPClient(client_name="sampling-capable-no-handler", supports_sampling=True)
+    client.connect()
+    client.initialize()
+    client.notify_initialized()
+    try:
+        result = client.call_tool("summarize_note", {"note_id": "todo"})
+        assert result["isError"] is True
+        assert "refused" in result["content"][0]["text"].lower() or "failed" in result["content"][0]["text"].lower()
+    finally:
+        client.shutdown()
 
 
 def test_sampling_handler_shapes_result_like_createMessageResult() -> None:

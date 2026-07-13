@@ -16,11 +16,11 @@ only the ordering is weak.
 
 from __future__ import annotations
 
-from agentic_patterns import Message, Provider, get_embedder, get_provider
+from agentic_patterns import Embedder, Message, Provider, get_embedder, get_provider
 
 from patterns.rag.chunking import ScoredChunk
 from patterns.rag.corpus import default_chunks
-from patterns.rag.dense import build_dense_index, dense_retrieve
+from patterns.rag.dense import DenseIndex, build_dense_index, dense_retrieve
 
 _DEMO_QUERY = (
     "If a customer moves to a higher tier before their billing period ends, "
@@ -99,6 +99,9 @@ def rerank_chunks(query: str, candidates: list[ScoredChunk], provider: Provider,
 
 def run_rerank_demo(
     provider: Provider | None = None,
+    *,
+    dense_index: DenseIndex | None = None,
+    embedder: Embedder | None = None,
 ) -> tuple[str, list[ScoredChunk], list[ScoredChunk]]:
     """Demonstrate a reranker fixing a first-stage retriever's weak ordering.
 
@@ -114,14 +117,22 @@ def run_rerank_demo(
         provider: A `Provider` to drive the demo. Defaults to a
             `MockProvider` scripted with a single `RANK:` reply that reads
             like a model that actually read each candidate.
+        dense_index: A prebuilt `DenseIndex` over the sample corpus. Built
+            fresh with `embedder` when omitted, so the demo still runs
+            standalone with no arguments.
+        embedder: Embedder for query encoding, and for building
+            `dense_index` when it is not supplied. Defaults to
+            `agentic_patterns.get_embedder`.
 
     Returns:
         A tuple of the query, the dense-ranked candidates before reranking,
         and the reranked top-3.
     """
-    embedder = get_embedder()
-    index = build_dense_index(default_chunks(), embedder)
-    candidates = dense_retrieve(_DEMO_QUERY, index, embedder, top_k=6)
+    if embedder is None:
+        embedder = get_embedder()
+    if dense_index is None:
+        dense_index = build_dense_index(default_chunks(), embedder)
+    candidates = dense_retrieve(_DEMO_QUERY, dense_index, embedder, top_k=6)
 
     if provider is None:
         provider = get_provider(

@@ -1,11 +1,12 @@
 """Context offload: persist the plan and step outputs to a file instead of
 holding them only in memory, so a run can resume after a restart without
-re-planning or re-running steps that already completed.
+re-planning or re-running steps that already completed successfully.
 
 This is what lets a long agent run survive a process crash, a context-window
 compaction, or a deliberate pause: the state that matters is not trapped in
 one process's memory. A resumed run with a checkpoint on disk should call
-the planner zero times and only execute the steps still missing.
+the planner zero times and only execute the steps still missing or whose
+checkpointed result failed.
 """
 
 from __future__ import annotations
@@ -17,7 +18,7 @@ from pathlib import Path
 from agentic_patterns import Message, Provider, ToolCall, ToolRegistry
 
 from patterns.planning.parser import parse_plan
-from patterns.planning.plan import Plan, Step, StepResult, substitute_args
+from patterns.planning.plan import Plan, Step, StepResult, is_error_observation, substitute_args
 from patterns.planning.validator import validate_plan
 
 PLANNER_SYSTEM = (
@@ -74,8 +75,8 @@ def run_with_offload(provider: Provider, goal: str, registry: ToolRegistry, stat
 
     If `state_path` already holds a checkpoint, this resumes from it: the
     planner is never called, and only steps missing from the saved results
-    execute. Otherwise this plans fresh, saves immediately, then saves again
-    after every step.
+    or whose saved result has `ok=False` execute. Otherwise this plans
+    fresh, saves immediately, then saves again after every step.
 
     Args:
         provider: Supplies the planner call on a fresh run; unused on resume.
@@ -97,11 +98,11 @@ def run_with_offload(provider: Provider, goal: str, registry: ToolRegistry, stat
         save_state(state_path, plan, results)
 
     for step in plan.steps:
-        if step.id in results:
+        if step.id in results and results[step.id].ok:
             continue
         args = substitute_args(step.args, results)
         output = registry.execute(ToolCall(id=step.id, name=step.tool, arguments=args))
-        results[step.id] = StepResult(step_id=step.id, output=output)
+        results[step.id] = StepResult(step_id=step.id, output=output, ok=not is_error_observation(output))
         save_state(state_path, plan, results)
 
     return OffloadRun(plan=plan, results=results, resumed=resumed, planner_calls=planner_calls)

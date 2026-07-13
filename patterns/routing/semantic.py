@@ -1,12 +1,13 @@
 """Sub-module: semantic (embedding-similarity) routing.
 
-Each route carries a few example utterances, embedded once. An incoming
-query is embedded with the same embedder and matched to the route whose
-utterances it is closest to by cosine similarity; a query that is not close
-enough to any route falls to a "no match" default instead of being forced
-onto the nearest route regardless of how far it is. This is faster, cheaper,
-and more deterministic than an LLM classifier, and adding a route is just
-adding utterances.
+Each route carries a few example utterances, embedded once and cached on
+the route for every later call. An incoming query is embedded with the
+same embedder and matched to the route whose utterances it is closest to
+by cosine similarity; a query that is not close enough to any route falls
+to a "no match" default instead of being forced onto the nearest route
+regardless of how far it is. This is faster, cheaper, and more
+deterministic than an LLM classifier, and adding a route is just adding
+utterances.
 
 Uses `HashEmbedder`, the repo's deterministic stdlib-only stand-in for a
 real embedding model (see `agentic_patterns.core.embeddings`): it preserves
@@ -65,6 +66,21 @@ _ROUTES = RouteRegistry(
 )
 
 
+def _cached_utterance_vectors(route: Route, embedder: Embedder) -> list[list[float]]:
+    """Return `route`'s utterance vectors, embedding them only on first use.
+
+    The vectors are cached as a private attribute on `route` itself, so a
+    route's utterances are embedded once (the first time any call scores
+    against it) and every later call, for that route, reuses the cached
+    vectors instead of re-embedding the same utterances.
+    """
+    cached: list[list[float]] | None = getattr(route, "_utterance_vectors_cache", None)
+    if cached is None:
+        cached = embedder.embed(route.utterances)
+        route._utterance_vectors_cache = cached  # type: ignore[attr-defined]
+    return cached
+
+
 def route_scores(text: str, registry: RouteRegistry = _ROUTES, embedder: Embedder | None = None) -> dict[str, float]:
     """Embed `text` and score it against every route's utterances.
 
@@ -77,7 +93,9 @@ def route_scores(text: str, registry: RouteRegistry = _ROUTES, embedder: Embedde
     Returns:
         A `{route_name: best_similarity}` mapping, where `best_similarity`
         is the highest cosine similarity between `text` and any one of that
-        route's utterances.
+        route's utterances. Each route's utterance vectors are computed
+        once and cached on the route (see `_cached_utterance_vectors`); only
+        `text` is embedded fresh on every call.
     """
     embedder = embedder or get_embedder()
     query_vector = embedder.embed([text])[0]
@@ -85,7 +103,7 @@ def route_scores(text: str, registry: RouteRegistry = _ROUTES, embedder: Embedde
     for route in registry:
         if not route.utterances:
             continue
-        utterance_vectors = embedder.embed(route.utterances)
+        utterance_vectors = _cached_utterance_vectors(route, embedder)
         scores[route.name] = max(cosine_similarity(query_vector, v) for v in utterance_vectors)
     return scores
 

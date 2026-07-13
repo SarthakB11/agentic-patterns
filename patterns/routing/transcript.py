@@ -10,6 +10,8 @@ from __future__ import annotations
 from patterns.routing.registry import RouteDecision
 
 
+# Deliberately duplicated (byte-for-byte) from patterns/reflection/transcript.py:
+# pattern folders are self-contained by design and never import from each other.
 def _snippet(text: str, width: int = 88) -> str:
     """Collapse whitespace and truncate `text` to `width` characters for display."""
     collapsed = " ".join(text.split())

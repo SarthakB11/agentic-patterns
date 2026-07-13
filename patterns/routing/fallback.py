@@ -51,11 +51,18 @@ def make_provider_handler(name: str, provider: Provider, question: str, *, syste
     `_REFUSAL_MARKERS`) into a `HandlerFailure`, so the chain treats a
     refusal the same way it treats a raised error: move to the next
     handler rather than returning the refusal text as if it were an
-    answer.
+    answer. Also converts any exception `provider.complete()` raises (a
+    network error, a malformed response, an exhausted `MockProvider`
+    script) into a `HandlerFailure`, preserving the original message, so a
+    broken provider re-dispatches to the next handler instead of crashing
+    the caller.
     """
 
     def call() -> str:
-        completion = provider.complete([Message.user(question)], system=system)
+        try:
+            completion = provider.complete([Message.user(question)], system=system)
+        except Exception as exc:
+            raise HandlerFailure(f"error: {exc}") from exc
         lowered = completion.content.strip().lower()
         if any(lowered.startswith(marker) for marker in _REFUSAL_MARKERS):
             raise HandlerFailure(f"refusal: {completion.content.strip()}")

@@ -15,7 +15,7 @@ from patterns.rag.agentic import run_agentic_rag, run_agentic_rag_demo
 from patterns.rag.assembly import assemble_context, deduplicate, edge_order, fit_to_budget
 from patterns.rag.bm25 import build_bm25_index, bm25_retrieve, tokenize
 from patterns.rag.chunking import Chunk, Document, ScoredChunk, chunk_document
-from patterns.rag.contextual import run_contextual_demo
+from patterns.rag.contextual import build_contextual_index, run_contextual_demo
 from patterns.rag.corpus import default_chunks
 from patterns.rag.dense import build_dense_index, dense_retrieve
 from patterns.rag.generation import ABSTAIN_ANSWER, extract_citations, generate_grounded_answer
@@ -181,6 +181,18 @@ def test_run_rerank_demo_promotes_dense_last_place_chunk() -> None:
     assert after[0].chunk.id == "billing-faq#0"  # reranking promotes it to first
 
 
+def test_run_rerank_demo_uses_prebuilt_dense_index_when_given() -> None:
+    """A prebuilt index over an unrelated corpus should actually drive retrieval,
+    proving the demo threads the passed-in index through instead of silently
+    rebuilding its own default index over the sample corpus."""
+    embedder = HashEmbedder()
+    only_chunk = Chunk(id="swapped#0", source_id="swapped", text="only chunk available here", start=0, end=1)
+    dense_index = build_dense_index([only_chunk], embedder)
+    provider = MockProvider(["RANK: swapped#0"])
+    query, before, after = run_rerank_demo(provider, dense_index=dense_index, embedder=embedder)
+    assert [sc.chunk.id for sc in before] == ["swapped#0"]
+
+
 # --- query transformation ------------------------------------------------
 
 
@@ -204,6 +216,35 @@ def test_run_hyde_demo_hypothetical_outranks_raw_query() -> None:
     assert results[0].chunk.id == "incident-runbook#1"
 
 
+def test_run_multi_query_demo_uses_prebuilt_dense_index_when_given() -> None:
+    """A prebuilt index over an unrelated corpus should actually drive retrieval,
+    proving the demo threads the passed-in index through instead of silently
+    rebuilding its own default index over the sample corpus."""
+    embedder = HashEmbedder()
+    only_chunk = Chunk(id="swapped#0", source_id="swapped", text="only chunk available here", start=0, end=1)
+    dense_index = build_dense_index([only_chunk], embedder)
+    provider = MockProvider(
+        [
+            "sub query one\nsub query two",
+            "Scripted answer citing the swapped chunk [swapped#0].",
+        ]
+    )
+    query, sub_queries, context_chunks, answer = run_multi_query_demo(provider, dense_index=dense_index, embedder=embedder)
+    assert [c.id for c in context_chunks] == ["swapped#0"]
+
+
+def test_run_hyde_demo_uses_prebuilt_dense_index_when_given() -> None:
+    """A prebuilt index over an unrelated corpus should actually drive retrieval,
+    proving the demo threads the passed-in index through instead of silently
+    rebuilding its own default index over the sample corpus."""
+    embedder = HashEmbedder()
+    only_chunk = Chunk(id="swapped#0", source_id="swapped", text="only chunk available here", start=0, end=1)
+    dense_index = build_dense_index([only_chunk], embedder)
+    provider = MockProvider(["a hypothetical passage about the swapped chunk"])
+    query, hypothetical, results = run_hyde_demo(provider, dense_index=dense_index, embedder=embedder)
+    assert [sc.chunk.id for sc in results] == ["swapped#0"]
+
+
 # --- contextual retrieval -------------------------------------------------
 
 
@@ -213,6 +254,42 @@ def test_contextual_demo_moves_orphan_chunk_to_top() -> None:
     after_ids = [sc.chunk.id for sc in after]
     assert before_ids.index("billing-faq#orphan") > 0  # buried before contextualizing
     assert after_ids[0] == "billing-faq#orphan"  # on top after contextualizing
+
+
+def test_run_contextual_demo_uses_provided_chunks_when_given() -> None:
+    """A `chunks` list missing a chunk id the demo needs should raise, proving
+    the demo looks up its distractors in the passed-in list instead of
+    silently re-chunking the corpus itself."""
+    incomplete_chunks = [c for c in default_chunks() if c.id != "oncall-rotation#0"]
+    with pytest.raises(KeyError):
+        run_contextual_demo(chunks=incomplete_chunks)
+
+
+def test_build_contextual_index_only_blurbs_selected_chunks() -> None:
+    embedder = HashEmbedder()
+    provider = MockProvider(["a blurb for the orphan chunk"])
+    doc = Document(id="doc", text="raw chunk text. orphan chunk text.")
+    raw = Chunk(id="doc#raw", source_id="doc", text="raw chunk text", start=0, end=1)
+    orphan = Chunk(id="doc#orphan", source_id="doc", text="orphan chunk text", start=1, end=2)
+
+    index, blurbs = build_contextual_index([raw, orphan], {"doc": doc}, embedder, provider, blurb_chunk_ids={"doc#orphan"})
+
+    assert blurbs == {"doc#orphan": "a blurb for the orphan chunk"}
+    assert len(provider.calls) == 1  # only the selected chunk triggered a blurb call
+    assert index.chunks == [raw, orphan]
+
+
+def test_build_contextual_index_blurbs_every_chunk_by_default() -> None:
+    embedder = HashEmbedder()
+    provider = MockProvider(["blurb one", "blurb two"])
+    doc = Document(id="doc", text="alpha chunk. beta chunk.")
+    c1 = Chunk(id="doc#0", source_id="doc", text="alpha chunk", start=0, end=1)
+    c2 = Chunk(id="doc#1", source_id="doc", text="beta chunk", start=1, end=2)
+
+    index, blurbs = build_contextual_index([c1, c2], {"doc": doc}, embedder, provider)
+
+    assert set(blurbs) == {"doc#0", "doc#1"}
+    assert len(provider.calls) == 2  # every chunk triggered its own blurb call
 
 
 # --- context assembly ------------------------------------------------------
@@ -279,6 +356,19 @@ def test_sufficiency_demo_widens_from_insufficient_to_sufficient() -> None:
     assert len(wide) > len(narrow)
 
 
+def test_run_sufficiency_demo_uses_prebuilt_dense_index_when_given() -> None:
+    """A prebuilt index over an unrelated corpus should actually drive retrieval,
+    proving the demo threads the passed-in index through instead of silently
+    rebuilding its own default index over the sample corpus."""
+    embedder = HashEmbedder()
+    only_chunk = Chunk(id="swapped#0", source_id="swapped", text="only chunk available here", start=0, end=1)
+    dense_index = build_dense_index([only_chunk], embedder)
+    provider = MockProvider(["SUFFICIENT: no\nnot enough", "SUFFICIENT: no\nstill not enough"])
+    query, narrow, narrow_verdict, wide, wide_verdict = run_sufficiency_demo(provider, dense_index=dense_index, embedder=embedder)
+    assert [c.id for c in narrow] == ["swapped#0"]
+    assert [c.id for c in wide] == ["swapped#0"]
+
+
 # --- grounded generation -----------------------------------------------
 
 
@@ -312,10 +402,39 @@ def test_naive_rag_demo_produces_grounded_two_citation_answer() -> None:
     assert set(result.answer.citations) <= {c.id for c in result.context_chunks}
 
 
+def test_run_naive_rag_demo_uses_prebuilt_indexes_when_given() -> None:
+    """A prebuilt index over an unrelated corpus should actually drive retrieval,
+    proving the demo threads the passed-in indexes through instead of silently
+    rebuilding its own default indexes over the sample corpus."""
+    embedder = HashEmbedder()
+    only_chunk = Chunk(id="swapped#0", source_id="swapped", text="only chunk available here", start=0, end=1)
+    dense_index = build_dense_index([only_chunk], embedder)
+    bm25_index = build_bm25_index([only_chunk])
+    provider = MockProvider(["Scripted answer citing the swapped chunk [swapped#0]."])
+    result = run_naive_rag_demo(provider, dense_index=dense_index, bm25_index=bm25_index, embedder=embedder)
+    assert [c.id for c in result.context_chunks] == ["swapped#0"]
+
+
 def test_hybrid_rerank_demo_covers_both_halves_of_the_question() -> None:
     result = run_hybrid_rerank_demo()
     context_ids = {c.id for c in result.context_chunks}
     assert context_ids == {"billing-faq#0", "billing-faq#1"}
+
+
+def test_run_abstain_demo_uses_prebuilt_indexes_when_given() -> None:
+    """Feeding the abstain demo a prebuilt index with one clearly relevant chunk
+    should stop it from abstaining, proving it threads the passed-in indexes
+    through instead of silently rebuilding its own default indexes."""
+    embedder = HashEmbedder()
+    only_chunk = Chunk(
+        id="swapped#0", source_id="swapped", text="xylophone quokka marmalade skateboard umbrella", start=0, end=1
+    )
+    dense_index = build_dense_index([only_chunk], embedder)
+    bm25_index = build_bm25_index([only_chunk])
+    provider = MockProvider(["Scripted answer citing the swapped chunk [swapped#0]."])
+    result = run_abstain_demo(provider, dense_index=dense_index, bm25_index=bm25_index, embedder=embedder)
+    assert result.answer.abstained is False
+    assert [c.id for c in result.context_chunks] == ["swapped#0"]
 
 
 def test_abstain_demo_makes_no_generation_call() -> None:
@@ -400,3 +519,20 @@ def test_agentic_rag_demo_narrows_its_second_search() -> None:
     assert len(tool_calls) == 2
     assert tool_calls[0] != tool_calls[1]
     assert set(result.answer.citations) == {"incident-runbook#1", "deploy-policy#1"}
+
+
+def test_run_agentic_rag_demo_uses_prebuilt_dense_index_when_given() -> None:
+    """A prebuilt index over an unrelated corpus should actually back the search
+    tool, proving the demo threads the passed-in index through instead of
+    silently rebuilding its own default index over the sample corpus."""
+    embedder = HashEmbedder()
+    only_chunk = Chunk(id="swapped#0", source_id="swapped", text="only chunk available here", start=0, end=1)
+    dense_index = build_dense_index([only_chunk], embedder)
+    provider = MockProvider(
+        [
+            {"tool": "search_knowledge_base", "args": {"query": "anything"}},
+            "The scripted final answer cites the swapped chunk [swapped#0].",
+        ]
+    )
+    result = run_agentic_rag_demo(provider, dense_index=dense_index, embedder=embedder)
+    assert result.answer.citations == ["swapped#0"]

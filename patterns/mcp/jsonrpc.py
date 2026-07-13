@@ -114,4 +114,4 @@ def is_notification(message: dict[str, Any]) -> bool:
 
 def is_response(message: dict[str, Any]) -> bool:
     """True if `message` is a response (has `id`, no `method`; `result` xor `error`)."""
-    return "method" not in message and "id" in message
+    return "method" not in message and "id" in message and ("result" in message) != ("error" in message)

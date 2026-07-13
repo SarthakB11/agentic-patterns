@@ -7,7 +7,7 @@ run after generation; a pre-tool guard sits between the model and any tool
 call it wants to make. The guiding principle is defense in depth: no single
 guard is enough, so guards are layered and every decision is logged.
 
-This demo runs nine scenarios end to end, entirely offline against
+This demo runs ten scenarios end to end, entirely offline against
 `MockProvider` with scripted, coherent conversations, no network call and
 no API key:
 
@@ -15,22 +15,24 @@ no API key:
    length-fixed request that still reaches the model.
 2. PII masking: a raw email never reaches the model; the reply is unmasked
    for the human afterward.
-3. Retrieval guard: one clean chunk, one chunk with PII redacted, and one
+3. PII redaction: a reply that itself surfaces personal data is redacted,
+   irreversibly, before it reaches the user.
+4. Retrieval guard: one clean chunk, one chunk with PII redacted, and one
    poisoned chunk dropped before any of it enters the prompt.
-4. Output schema guard: a malformed triage response triggers exactly one
+5. Output schema guard: a malformed triage response triggers exactly one
    reask, then validates.
-5. Output schema guard: two malformed responses in a row exhaust the retry
+6. Output schema guard: two malformed responses in a row exhaust the retry
    budget and the pipeline returns a safe fallback, never raw JSON.
-6. Moderation guard: a blocklisted draft reply is refrained, not sent.
-7. Groundedness guard: one answer is fully supported by context, a second
+7. Moderation guard: a blocklisted draft reply is refrained, not sent.
+8. Groundedness guard: one answer is fully supported by context, a second
    contains a fabricated claim the context does not support.
-8. Pre-tool (execution) guard: a disallowed tool, an out-of-range argument,
+9. Pre-tool (execution) guard: a disallowed tool, an out-of-range argument,
    an over-threshold call that a human approves, one a human denies, and a
    clean call.
-9. Architectural guard (Plan-Then-Execute): a tool's return value carries
-   an embedded, injected instruction; the plan was already committed
-   before that text existed, so the injection has no path to a new or
-   different action.
+10. Architectural guard (Plan-Then-Execute): a tool's return value carries
+    an embedded, injected instruction; the plan was already committed
+    before that text existed, so the injection has no path to a new or
+    different action.
 
 Run it from the repository root:
 
@@ -56,6 +58,10 @@ def main() -> None:
 
     pii_result = scenarios.run_pii_masked_demo()
     assert "jane.doe@example.com" not in str(pii_result.value)
+    print()
+
+    redact_result = scenarios.run_pii_redact_demo()
+    assert "jane.doe@example.com" not in str(redact_result.value)
     print()
 
     kept = retrieval_guard.run_retrieval_guard_demo()
@@ -86,7 +92,7 @@ def main() -> None:
     assert executed_as_planned
     print()
 
-    print("All nine scenarios completed without exhausting their scripts.")
+    print("All ten scenarios completed without exhausting their scripts.")
 
 
 if __name__ == "__main__":

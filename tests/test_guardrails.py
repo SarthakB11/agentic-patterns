@@ -25,10 +25,11 @@ from patterns.guardrails.core import (
 from patterns.guardrails.groundedness import GroundednessGuard
 from patterns.guardrails.input_guards import LengthGuard, PromptInjectionGuard, TopicalAllowlistGuard
 from patterns.guardrails.output_guards import JSONSchemaGuard, ModerationGuard
-from patterns.guardrails.pii import PIIMaskGuard, detect_pii, mask_pii, unmask_pii
+from patterns.guardrails.pii import PIIMaskGuard, PIIRedactGuard, detect_pii, mask_pii, unmask_pii
 from patterns.guardrails.pipeline import run_guarded
 from patterns.guardrails.pretool_guard import PreToolGuard, ToolPolicy, execute_guarded
 from patterns.guardrails.retrieval_guard import Chunk, RetrievalGuard, filter_chunks
+from patterns.guardrails.scenarios import run_pii_redact_demo
 
 
 # --- core: Guard protocol, OnFail, fail-closed run_guard --------------------
@@ -147,6 +148,15 @@ def test_detect_pii_finds_ssn_without_swallowing_it_into_card_pattern() -> None:
     assert "SSN" in categories
 
 
+def test_detect_pii_orders_a_duplicated_value_by_its_own_occurrence_position() -> None:
+    """A value that appears twice must be ordered by where each occurrence
+    actually sits in the text, not by the first occurrence's position
+    reused for every match of that value."""
+    text = "Email jane@example.com, phone 415-555-0199, email again jane@example.com."
+    matches = detect_pii(text)
+    assert [m.category for m in matches] == ["EMAIL", "PHONE", "EMAIL"]
+
+
 def test_pii_mask_guard_reports_fix_and_populates_placeholder_map() -> None:
     guard = PIIMaskGuard()
     result = guard.check("My email is jane.doe@example.com.")
@@ -157,6 +167,21 @@ def test_pii_mask_guard_reports_fix_and_populates_placeholder_map() -> None:
 
 def test_pii_mask_guard_passes_clean_text_unchanged() -> None:
     guard = PIIMaskGuard()
+    result = guard.check("What is my order status?")
+    assert result.passed is True
+    assert result.value == "What is my order status?"
+
+
+def test_pii_redact_guard_redacts_and_reports_fix() -> None:
+    guard = PIIRedactGuard()
+    result = guard.check("Contact jane.doe@example.com for details.")
+    assert result.action == OnFail.FIX
+    assert "jane.doe@example.com" not in result.value
+    assert "[REDACTED]" in result.value
+
+
+def test_pii_redact_guard_passes_clean_text_unchanged() -> None:
+    guard = PIIRedactGuard()
     result = guard.check("What is my order status?")
     assert result.passed is True
     assert result.value == "What is my order status?"
@@ -361,6 +386,61 @@ def test_run_guarded_moderation_refrain_returns_fallback() -> None:
     )
     assert result.passed is False
     assert result.value == "let me rephrase that"
+
+
+def test_run_guarded_redacts_pii_the_model_volunteers_in_its_reply() -> None:
+    provider = MockProvider(script=["Contact jane.doe@example.com for a callback."])
+    result = run_guarded(provider, "who do I contact?", output_guards=[PIIRedactGuard()])
+    assert result.passed is True
+    assert "jane.doe@example.com" not in str(result.value)
+    assert "[REDACTED]" in str(result.value)
+
+
+def test_run_pii_redact_demo_wires_pii_redact_guard_into_a_pipeline_run() -> None:
+    result = run_pii_redact_demo()
+    assert result.passed is True
+    assert "jane.doe@example.com" not in str(result.value)
+
+
+class _AlwaysFailNoop:
+    """A guard that always fails without fixing or stopping the pipeline."""
+
+    name = "always_fail_noop"
+
+    def check(self, value: str) -> GuardResult:
+        return GuardResult(passed=False, action=OnFail.NOOP, value=value, message="flagged but not fixed")
+
+
+class _AlwaysFailFilter:
+    """A guard that always fails by wanting to drop the value outright."""
+
+    name = "always_fail_filter"
+
+    def check(self, value: str) -> GuardResult:
+        return GuardResult(passed=False, action=OnFail.FILTER, value=value, message="would drop this value")
+
+
+def test_run_guarded_noop_output_guard_failure_cannot_report_passed_true() -> None:
+    """A NOOP failure is logged and the pipeline moves on (no retry, no
+    exception), but the fail-closed invariant means the run must not come
+    back as `passed=True` carrying the unfixed value."""
+    provider = MockProvider(script=["unsafe text a NOOP guard flags but never fixes"])
+    result = run_guarded(provider, "request", output_guards=[_AlwaysFailNoop()], fallback="safe fallback")
+    assert result.passed is False
+    assert result.stop_reason == "output_guard_failed"
+    assert result.value == "safe fallback"
+    assert result.log.entries[-1].passed is False
+    assert result.log.entries[-1].action == OnFail.NOOP
+
+
+def test_run_guarded_filter_output_guard_failure_cannot_report_passed_true() -> None:
+    provider = MockProvider(script=["unsafe text a FILTER guard flags but never fixes"])
+    result = run_guarded(provider, "request", output_guards=[_AlwaysFailFilter()], fallback="safe fallback")
+    assert result.passed is False
+    assert result.stop_reason == "output_guard_failed"
+    assert result.value == "safe fallback"
+    assert result.log.entries[-1].passed is False
+    assert result.log.entries[-1].action == OnFail.FILTER
 
 
 def test_run_guarded_grounded_claim_passes_through_output_guard() -> None:

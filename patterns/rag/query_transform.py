@@ -142,6 +142,9 @@ def hyde_retrieve(
 
 def run_multi_query_demo(
     provider: Provider | None = None,
+    *,
+    dense_index: DenseIndex | None = None,
+    embedder: Embedder | None = None,
 ) -> tuple[str, list[str], list[Chunk], GroundedAnswer]:
     """Demonstrate multi-query expansion recovering both halves of a vague question.
 
@@ -155,6 +158,12 @@ def run_multi_query_demo(
         provider: A `Provider` to drive the demo. Defaults to a
             `MockProvider` scripted with the sub-query split and the final
             grounded answer.
+        dense_index: A prebuilt `DenseIndex` over the sample corpus. Built
+            fresh with `embedder` when omitted, so the demo still runs
+            standalone with no arguments.
+        embedder: Embedder for query encoding, and for building
+            `dense_index` when it is not supplied. Defaults to
+            `agentic_patterns.get_embedder`.
 
     Returns:
         A tuple of the original query, the sub-queries the model proposed,
@@ -170,20 +179,33 @@ def run_multi_query_demo(
                 "the postmortem report is due within forty eight hours [incident-runbook#2].",
             ]
         )
-    embedder = get_embedder()
-    dense_index = build_dense_index(default_chunks(), embedder)
+    if embedder is None:
+        embedder = get_embedder()
+    if dense_index is None:
+        dense_index = build_dense_index(default_chunks(), embedder)
     sub_queries, fused = multi_query_retrieve(_MULTI_QUERY_DEMO_QUERY, dense_index, embedder, provider, top_k=2, fetch_k=2)
     context_chunks = assemble_context(fused, token_budget=200)
     answer = generate_grounded_answer(_MULTI_QUERY_DEMO_QUERY, context_chunks, provider)
     return _MULTI_QUERY_DEMO_QUERY, sub_queries, context_chunks, answer
 
 
-def run_hyde_demo(provider: Provider | None = None) -> tuple[str, str, list[ScoredChunk]]:
+def run_hyde_demo(
+    provider: Provider | None = None,
+    *,
+    dense_index: DenseIndex | None = None,
+    embedder: Embedder | None = None,
+) -> tuple[str, str, list[ScoredChunk]]:
     """Demonstrate HyDE recovering a match a vague raw query misses.
 
     Args:
         provider: A `Provider` to drive the demo. Defaults to a
             `MockProvider` scripted with a plausible hypothetical passage.
+        dense_index: A prebuilt `DenseIndex` over the sample corpus. Built
+            fresh with `embedder` when omitted, so the demo still runs
+            standalone with no arguments.
+        embedder: Embedder for query encoding, and for building
+            `dense_index` when it is not supplied. Defaults to
+            `agentic_patterns.get_embedder`.
 
     Returns:
         A tuple of the original query, the generated hypothetical document,
@@ -197,7 +219,9 @@ def run_hyde_demo(provider: Provider | None = None) -> tuple[str, str, list[Scor
                 "than attempting a forward fix."
             ]
         )
-    embedder = get_embedder()
-    dense_index = build_dense_index(default_chunks(), embedder)
+    if embedder is None:
+        embedder = get_embedder()
+    if dense_index is None:
+        dense_index = build_dense_index(default_chunks(), embedder)
     hypothetical, results = hyde_retrieve(_HYDE_DEMO_QUERY, dense_index, embedder, provider, top_k=3)
     return _HYDE_DEMO_QUERY, hypothetical, results

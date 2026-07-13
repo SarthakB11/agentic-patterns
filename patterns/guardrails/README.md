@@ -19,11 +19,13 @@ flowchart TD
     B -->|pass| C[call the model]
     C --> D[run output guards in order]
     D -->|fix / pass| D
+    D -->|noop / filter, unresolved| D
     D -->|retry, budget left| E[feed error back, reask]
     E --> C
     D -->|retry, budget exhausted| Z1
     D -->|refrain| Z1
-    D -->|all pass| Z3[return validated value]
+    D -->|round done, all fixed or passed| Z3[return validated value]
+    D -->|round done, an unresolved noop / filter failure| Z1
 ```
 
 A tool call goes through a separate, deterministic pre-tool guard before it ever reaches `ToolRegistry.execute`, with a human-approval branch for calls that are valid but over a risk threshold. The Plan-Then-Execute demo sits outside this checkpoint flow entirely: the model commits to a full plan in one call, before any tool has run, so a later tool's poisoned output has no second planning call to reach.
@@ -38,7 +40,7 @@ A tool call goes through a separate, deterministic pre-tool guard before it ever
 - `groundedness.py`: groundedness sub-variant. Splits an answer into claims and checks each against a fixed context with a deterministic token-overlap heuristic, standing in for an LLM-as-judge.
 - `pretool_guard.py`: execution (pre-tool) guard sub-variant. Validates a tool call's name against an allowlist and its arguments against ranges, as deterministic code (hook style), with a human-approval branch for over-threshold calls.
 - `pipeline.py`: the `GuardedAgent` pipeline (`run_guarded`), composing input guards, the model call, and output guards into a bounded validate-retry-repair loop with a safe fallback.
-- `scenarios.py`: scripted demo scenarios built on `pipeline.run_guarded` (injection block, PII round trip, schema reask success and exhaustion, moderation refrain).
+- `scenarios.py`: scripted demo scenarios built on `pipeline.run_guarded` (injection block, PII round trip, PII redaction on a reply that surfaces personal data, schema reask success and exhaustion, moderation refrain).
 - `architecture.py`: architectural guard, Plan-Then-Execute. A single committed plan runs mechanically; a poisoned tool output cannot add or change a step because no second planning call ever reads it.
 
 Skipped: the dialog/flow rail and the Constitutional-style self-critique guard from the brief's taxonomy. Both are in scope conceptually but not in the brief's must-cover checklist; the dialog rail overlaps heavily with the topical allowlist and pre-tool guards already implemented, and the self-critique loop's structural shape (draft, critique, revise) is already the reflection pattern's subject in this repository. Evaluating the pipeline against a full AgentDojo-style injection harness, as the brief's expansion suggests, is also out of scope for an offline teaching example; `test_guardrails.py` covers the same failure mode with one targeted poisoned-tool-output test instead.
@@ -60,7 +62,7 @@ GUARDRAILS PATTERN: checkpoints around a model, plus one architectural guard
   ...
 === PII masking: raw personal data never reaches the model ===
 ...
-All nine scenarios completed without exhausting their scripts.
+All ten scenarios completed without exhausting their scripts.
 ```
 
 ## Real providers

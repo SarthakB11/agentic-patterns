@@ -16,7 +16,14 @@ from dataclasses import dataclass
 from agentic_patterns import Message, Provider, ToolCall, ToolRegistry, get_provider
 
 from patterns.planning.parser import parse_plan
-from patterns.planning.plan import Plan, Step, StepResult, substitute_args, topological_waves
+from patterns.planning.plan import (
+    Plan,
+    Step,
+    StepResult,
+    is_error_observation,
+    substitute_args,
+    topological_waves,
+)
 from patterns.planning.validator import validate_plan
 
 PLANNER_SYSTEM = (
@@ -46,7 +53,7 @@ def _run_step(step: Step, registry: ToolRegistry, results: dict[str, StepResult]
     """Substitute upstream outputs into `step.args` and run its tool."""
     args = substitute_args(step.args, results)
     output = registry.execute(ToolCall(id=step.id, name=step.tool, arguments=args))
-    return StepResult(step_id=step.id, output=output)
+    return StepResult(step_id=step.id, output=output, ok=not is_error_observation(output))
 
 
 def run_dag(provider: Provider, goal: str, registry: ToolRegistry, max_workers: int = 4) -> DagRun:

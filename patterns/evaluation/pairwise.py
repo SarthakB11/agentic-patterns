@@ -120,8 +120,8 @@ def run_pairwise_fair_demo(provider: Provider | None = None) -> PairwiseResult:
             script=[
                 "Candidate B gives the exact menu path and states when access "
                 "ends; Candidate A is vague about both.\nWINNER: b",
-                "Candidate A here is vague about the menu path and access end "
-                "date; Candidate B gives both precisely.\nWINNER: a",
+                "Candidate A here gives the exact menu path and states when "
+                "access ends; Candidate B is vague about both.\nWINNER: a",
             ]
         )
     return run_pairwise_judgment(provider, case, candidate_a, candidate_b)
