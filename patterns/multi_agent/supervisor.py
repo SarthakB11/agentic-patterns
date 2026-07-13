@@ -207,7 +207,10 @@ def run_resume_demo() -> tuple[SharedState, list[tuple[Worker, Subtask]]]:
     shows that the resumed run only builds worker assignments for subtasks
     still missing from `completed_subtask_ids`. The "market" worker is never
     constructed, so its provider is never called: no completed worker is
-    replayed.
+    replayed. This checkpoints results, not the plan: unlike LangGraph-style
+    durable execution, which also checkpoints the plan so no completed step
+    (including planning) re-executes, this demo still re-runs `decompose()`
+    on resume. A reader should not assume nothing re-runs here.
 
     Returns:
         The resumed `SharedState` and the assignments that would actually

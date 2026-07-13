@@ -4,7 +4,7 @@ Multi-agent orchestration splits a task across several language-model agents tha
 
 ## When to use it
 
-Reach for multi-agent orchestration when the work is genuinely cross-domain, when subtasks are independent enough to run in parallel, when distinct agents need distinct tools or security boundaries, or when a single agent's prompt has grown so large that instruction-following degrades. Anthropic reported a large gain from an orchestrator-worker design on breadth-first research, at a large multiple of the tokens of a single chat turn, so the task's value has to justify the cost. Avoid it when a single agent with good tools already succeeds, when subtasks share tight state that is expensive to serialize, or when latency and cost budgets are strict. The MAST study (arXiv:2503.13657) found multi-agent failures are mostly coordination bugs, not model weakness: vague subtask specs, agents talking past each other, and missing verification account for most of them, so start with the simplest topology that works and add agents only when it fails.
+Reach for multi-agent orchestration when the work is genuinely cross-domain, when subtasks are independent enough to run in parallel, when distinct agents need distinct tools or security boundaries, or when a single agent's prompt has grown so large that instruction-following degrades. Anthropic reported their orchestrator-worker system beat a single agent by 90.2% on an internal research eval, but at roughly 15x the tokens of a single chat turn (versus about 4x for one chat turn), so the task's value has to justify the cost; `economics.py` measures that multiple instead of just quoting it. Avoid it when a single agent with good tools already succeeds, when subtasks share tight state that is expensive to serialize, or when latency and cost budgets are strict. Cognition's "Don't Build Multi-Agents" argues single-threaded is the correct default for many tasks precisely because parallel workers acting on partial context make conflicting decisions; treat that as the baseline to beat, not just a rule to note. The MAST study (arXiv:2503.13657) hand-annotated 1600-plus multi-agent traces across seven frameworks and found failures are mostly coordination bugs, not model weakness, in three categories: specification and system-design issues (41.8%), inter-agent misalignment (36.9%), and task verification (21.3%). `failure_attribution.py` turns that taxonomy into a working attributor instead of leaving it as a citation. Start with the simplest topology that works and add agents only when it fails.
 
 ## How this example works
 
@@ -28,6 +28,21 @@ flowchart TD
 
 Workers never see `SharedState` and never write to it; they return a `WorkerResult` to whoever dispatched them. Only the supervisor writes, which keeps writes single-threaded even when reads (worker dispatch) fan out, per Cognition's "Don't Build Multi-Agents" observation that parallel writes from partial context produce conflicting decisions.
 
+`magentic.py` adds the active loop the plain supervisor does not have: a Task Ledger (facts, guesses, plan) and a Progress Ledger (done, progress, next agent and instruction) that detect a stall and replan instead of running the same fixed plan to the end:
+
+```mermaid
+flowchart TD
+    A[Build Task Ledger: facts, guesses, plan] --> B{Progress Ledger: done?}
+    B -- yes --> Z[Return final answer]
+    B -- no --> C[Dispatch named agent with instruction]
+    C --> D{Stall counter >= threshold?}
+    D -- no, loop --> B
+    D -- yes --> E[Reflect: rewrite Task Ledger]
+    E --> F{Replans > cap?}
+    F -- no --> A
+    F -- yes --> G[Return fallback: replan_cap]
+```
+
 ## Variants implemented
 
 - `worker.py`: shared `Subtask`/`Worker`/`WorkerResult` abstraction and `dispatch_parallel`, the concurrent / parallel (fan-out) mechanics every other module dispatches through.
@@ -39,8 +54,12 @@ Workers never see `SharedState` and never write to it; they return a `WorkerResu
 - `debate.py`: debate / society of minds, converging across rounds or falling back to a majority tally when a round cap is reached.
 - `maker_checker.py`: maker-checker / generator-critic loop with an attempt cap and a defined fallback when the cap is reached without approval.
 - `hierarchical.py`: hierarchical teams (supervisor of supervisors), nesting the same fan-out/synthesize mechanics one level deeper.
+- `failure_attribution.py`: the MAST 14-mode failure taxonomy as a static table, plus an attributor that reads a run trace and names the responsible agent, the decisive step, and the MAST mode, in all three strategies from the Who&When benchmark (All-at-Once, Step-by-Step, Binary-Search).
+- `economics.py`: context-isolation economics; runs one goal both single-threaded and through the `supervisor.py` fan-out, tallies each path's actual tokens with a `TrackedProvider` wrapper, and reports the token multiple and each path's peak per-agent context.
+- `magentic.py`: Magentic-style dual-ledger orchestrator (Task Ledger outer loop, Progress Ledger inner loop) with a stall counter and a reflect-revise-restart replan, the active loop `state.py`'s passive status ledger does not provide.
+- `agent_card.py`: A2A Agent Card capability discovery, ranking registered cards by skill match and delegating to the winner through the existing `handoff.DelegationTask` lifecycle, including the no-capable-agent discovery failure.
 
-Skipped: blackboard / shared-state as its own demo, since `state.py`'s `SharedState` already is the blackboard every other module reads and writes through a single writer; a second dedicated blackboard demo would mostly repeat the supervisor demo's mechanics under a different name. Magentic / planner-ledger as a full replanning-on-stall demo, since `state.py`'s status ledger and checkpoint/resume already cover the progress-tracking half of that variant; a complete stall-detection-and-replan loop was left out to keep the folder to a reasonable size rather than half-implement it.
+Skipped: blackboard / shared-state as its own demo, since `state.py`'s `SharedState` already is the blackboard every other module reads and writes through a single writer; a second dedicated blackboard demo would mostly repeat the supervisor demo's mechanics under a different name. Full A2A network transport (JSON-RPC over HTTP, `/.well-known/agent-card.json` fetch, OAuth), since it is a transport wrapper with no new offline-testable coordination behavior; `agent_card.py` keeps the card-matching and delegation logic that is actually teachable. Magentic's replanning-on-stall was noted in an earlier version of this README as "skipped for size"; `magentic.py` is that completion, not a permanent omission.
 
 ## Run it
 
@@ -63,6 +82,15 @@ final report: Notion ($10/mo) and Evernote ($15/mo) both require network sync ..
   round 2: {'agent_a': '0.05', 'agent_b': '0.05'}
 final_answer='0.05', stop_reason=converged
 ...
+=== 8. Failure attribution (MAST taxonomy) ===
+  all_at_once:   agent=market_researcher step=2 mode=FM-2.3 (inter_agent)
+  step_by_step:  agent=market_researcher step=2 mode=FM-2.3 (inter_agent)
+  binary_search: agent=market_researcher step=4 mode=FM-2.3 (inter_agent)
+...
+=== 10. Magentic dual-ledger orchestrator ===
+stall tripped after 2 no-progress steps, replans=1, stop_reason=completed
+answer: Room C (Innovation Lab) is booked for the 3pm design review.
+...
 All sub-variants completed without exhausting their scripts.
 ```
 
@@ -72,9 +100,13 @@ Set `AGENTIC_PATTERNS_PROVIDER=openai` (with `OPENAI_API_KEY` set) or `AGENTIC_P
 
 ## Sources
 
-- Anthropic, "How we built our multi-agent research system" (engineering blog, 2025). https://www.anthropic.com/engineering/multi-agent-research-system
+- Anthropic, "How we built our multi-agent research system" (engineering blog, 2025). https://www.anthropic.com/engineering/multi-agent-research-system . Single agents about 4x chat tokens, multi-agent about 15x; orchestrator-worker beat single-agent Claude Opus 4 by 90.2% on the internal research eval; token usage alone explains 80% of BrowseComp variance (three factors explain 95%).
 - Yilun Du, Shuang Li, Antonio Torralba, Joshua B. Tenenbaum, Igor Mordatch, "Improving Factuality and Reasoning in Language Models through Multiagent Debate," arXiv:2305.14325 (2023).
-- Cognition, "Don't Build Multi-Agents" (engineering blog, 2025). https://cognition.com/blog/dont-build-multi-agents
-- MAST: a study of 200-plus multi-agent traces across seven frameworks, arXiv:2503.13657 (NeurIPS 2025).
+- Cognition, "Don't Build Multi-Agents" (engineering blog, 2025). https://cognition.com/blog/dont-build-multi-agents . Single-threaded agent as the default; parallel workers on partial context make conflicting decisions.
+- Mert Cemri, Melissa Z. Pan, Shuyi Yang, Lakshya A. Agrawal, Bhavya Chopra, Rishabh Tiwari, Kurt Keutzer, Aditya Parameswaran, Dan Klein, Kannan Ramchandran, Matei Zaharia, Joseph E. Gonzalez, Ion Stoica, "Why Do Multi-Agent LLM Systems Fail?", arXiv:2503.13657. MAST: 14 failure modes, three categories at 41.8% (specification/system design), 36.9% (inter-agent misalignment), 21.3% (task verification); 1600-plus annotated traces across seven frameworks, annotator agreement kappa = 0.88.
+- Shaokun Zhang, Ming Yin, Jieyu Zhang, Jiale Liu, Zhiguang Han, Jingyang Zhang, Beibin Li, Chi Wang, Huazheng Wang, Yiran Chen, Qingyun Wu, "Which Agent Causes Task Failures and When? On Automated Failure Attribution of LLM Multi-Agent Systems", arXiv:2505.00212. Who&When benchmark (127 failure logs); All-at-Once, Step-by-Step, and Binary-Search attribution; agent-level accuracy near 53%, step-level near 14%; agent-vs-step method trade-off.
+- Mengzhuo Chen, Junjie Wang, Fangwen Mu, Yawen Wang, Zhe Liu, Huanxiang Feng, Qing Wang, "Seeing the Whole Elephant: A Benchmark for Failure Attribution in LLM-based Multi-Agent Systems", arXiv:2604.22708. Full-execution-trace attribution (TraceElephant); full traces improve attribution accuracy by up to 76% over output-only traces.
+- Adam Fourney, Gagan Bansal, Hussein Mozannar, Cheng Tan, Eduardo Salinas, Erkang Zhu, Friederike Niedtner, Grace Proebsting, Griffin Bassman, Jack Gerrits, Jacob Alber, Peter Chang, Ricky Loynd, Robert West, Victor Dibia, Ahmed Awadallah, Ece Kamar, Rafah Hosn, Saleema Amershi, "Magentic-One: A Generalist Multi-Agent System for Solving Complex Tasks", arXiv:2411.04468. Task Ledger (outer loop: facts, guesses, plan) and Progress Ledger (inner loop: progress, next agent and instruction); stall counter with a threshold near 2 that triggers reflect-revise-restart.
+- Microsoft Agent Framework, Magentic orchestration (production form of Magentic-One's dual-ledger loop). https://learn.microsoft.com/en-us/agent-framework/workflows/orchestrations/magentic
 - Microsoft Azure Architecture Center, "AI Agent Orchestration Patterns." https://learn.microsoft.com/en-us/azure/architecture/ai-ml/guide/ai-agent-design-patterns
-- Linux Foundation, Agent2Agent (A2A) protocol, spec v0.3.0. https://www.linuxfoundation.org/press/linux-foundation-launches-the-agent2agent-protocol-project
+- Agent2Agent (A2A) protocol, donated to the Linux Foundation June 23, 2025 (Google, AWS, Cisco, Microsoft, Salesforce, SAP, and ServiceNow as founding members). Agent Cards published at a well-known path advertise capabilities and skills for cross-vendor discovery and delegation. https://www.linuxfoundation.org/press/linux-foundation-launches-the-agent2agent-protocol-project-to-enable-secure-intelligent-communication-between-ai-agents and https://github.com/a2aproject/A2A . Current spec version is past v0.3.0 but could not be confirmed from a primary spec page as of this writing; left unverified rather than restated as "v0.3.0".

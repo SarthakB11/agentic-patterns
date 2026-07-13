@@ -27,6 +27,14 @@ no API key:
    approving it, and a capped run that falls back to escalation.
 7. Hierarchical teams (supervisor of supervisors): two team leads each
    synthesize their own sub-team, and a top supervisor synthesizes both.
+8. Failure attribution: the MAST taxonomy applied to a broken run, with all
+   three attribution strategies (All-at-Once, Step-by-Step, Binary-Search).
+9. Economics: the same goal run single-threaded and through the supervisor
+   fan-out, with the actual token multiple and context-isolation numbers.
+10. Magentic dual-ledger orchestrator: a plan that stalls, replans, and
+    finishes, driven by a Task Ledger and a Progress Ledger.
+11. Agent Card discovery: a coordinator picks an un-hardcoded delegate by
+    matching a task against registered A2A-style capability cards.
 
 Run it from the repository root:
 
@@ -40,7 +48,19 @@ function builds its providers through `agentic_patterns.get_provider`.
 
 from __future__ import annotations
 
-from patterns.multi_agent import aggregation, debate, group_chat, handoff, hierarchical, maker_checker, supervisor
+from patterns.multi_agent import (
+    agent_card,
+    aggregation,
+    debate,
+    economics,
+    failure_attribution,
+    group_chat,
+    handoff,
+    hierarchical,
+    maker_checker,
+    magentic,
+    supervisor,
+)
 from agentic_patterns import get_provider
 
 
@@ -55,6 +75,10 @@ def main() -> None:
     _run_debate_section()
     _run_maker_checker_section()
     _run_hierarchical_section()
+    _run_failure_attribution_section()
+    _run_economics_section()
+    _run_magentic_section()
+    _run_agent_card_section()
 
     print("All sub-variants completed without exhausting their scripts.")
 
@@ -164,6 +188,49 @@ def _run_hierarchical_section() -> None:
         for r in team_result.worker_results:
             print(f"    - {r.role}: {r.content}")
     print(f"top supervisor's final verdict: {state.results['final_report']}")
+    print()
+
+
+def _run_failure_attribution_section() -> None:
+    print("=== 8. Failure attribution (MAST taxonomy) ===")
+    attributions = failure_attribution.run_failure_attribution_demo()
+    for strategy in ("all_at_once", "step_by_step", "binary_search"):
+        a = attributions[strategy]
+        print(f"  {strategy}: agent={a.agent} step={a.step} mode={a.mode_id} ({a.category})")
+    agents_named = {a.agent for a in attributions.values()}
+    steps_named = {a.step for a in attributions.values()}
+    print(f"all strategies agree on the agent ({agents_named.pop()}); they differ on the step: {sorted(steps_named)}")
+    print()
+
+
+def _run_economics_section() -> None:
+    print("=== 9. Economics: single-threaded vs. supervisor fan-out ===")
+    report = economics.run_economics_demo()
+    print(f"single-threaded: {report.single_threaded_tokens} tokens across {report.single_threaded_call_count} calls, "
+          f"peak context {report.single_threaded_peak_context} tokens")
+    print(f"supervised:      {report.supervised_tokens} tokens across {report.supervised_call_count} calls, "
+          f"peak context {report.supervised_peak_context} tokens")
+    print(f"token multiple: {report.multiple:.2f}x; worker peak contexts: {report.worker_peak_contexts}")
+    print("the fan-out costs more tokens but caps every worker's context to its own subtask, not the whole job")
+    print()
+
+
+def _run_magentic_section() -> None:
+    print("=== 10. Magentic dual-ledger orchestrator (stall + replan) ===")
+    result = magentic.run_magentic_demo()
+    for line in result.transcript:
+        print(f"  {line}")
+    print(f"replans={result.replans}, stop_reason={result.stop_reason}")
+    print(f"answer: {result.answer}")
+    print()
+
+
+def _run_agent_card_section() -> None:
+    print("=== 11. Agent Card discovery (A2A capability matching) ===")
+    selection, delegated, no_capable_error = agent_card.run_agent_card_demo()
+    print(f"discovered: {selection.card.name} (score={selection.score}) for a refund request")
+    print(f"  delegation -> status={delegated.status}, resolution={delegated.payload}")
+    print(f"unmatched task correctly found no capable agent: {no_capable_error}")
     print()
 
 

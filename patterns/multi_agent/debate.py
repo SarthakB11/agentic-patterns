@@ -9,6 +9,10 @@ ideation), debate is aimed at correctness: Du et al. showed this raises
 factual accuracy and math reasoning versus a single model
 (arXiv:2305.14325), because a wrong first answer gets a chance to be
 challenged by a right one before it becomes the final answer.
+
+Convergence is checked with `aggregation.normalize_answer`, not exact
+string equality: two agents who both mean "yes" but write "Yes" and "yes",
+or "$0.05" and "0.05", now agree.
 """
 
 from __future__ import annotations
@@ -17,6 +21,8 @@ from collections import Counter
 from dataclasses import dataclass, field
 
 from agentic_patterns import Message, Provider, get_provider
+
+from patterns.multi_agent.aggregation import normalize_answer
 
 DEBATER_SYSTEM = (
     "You are one of several agents debating a question. Reason briefly, then end your "
@@ -98,11 +104,16 @@ def run_debate(agents: dict[str, Provider], question: str, *, max_rounds: int = 
         rounds.append(DebateRound(round_index, positions, replies))
         prior_replies = replies
 
-        if len(set(positions.values())) == 1:
+        # Compare by normalize_answer, not exact string, so "Yes" and "yes" (or
+        # "0.05" and "$0.05") count as convergence rather than staying split.
+        if len({normalize_answer(v) for v in positions.values()}) == 1:
             return DebateResult(rounds=rounds, final_answer=next(iter(positions.values())), stop_reason="converged")
 
-    tally = Counter(rounds[-1].positions.values())
-    fallback = tally.most_common(1)[0][0]
+    final_positions = list(rounds[-1].positions.values())
+    tally = Counter(normalize_answer(v) for v in final_positions)
+    top_count = max(tally.values())
+    # Keep the original casing of the first position matching the winning normalized form.
+    fallback = next(v for v in final_positions if tally[normalize_answer(v)] == top_count)
     return DebateResult(rounds=rounds, final_answer=fallback, stop_reason="max_rounds")
 
 

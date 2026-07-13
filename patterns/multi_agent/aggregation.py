@@ -21,14 +21,28 @@ from agentic_patterns import Message, Provider, get_provider
 from patterns.multi_agent.worker import Subtask, Worker, WorkerResult, dispatch_parallel
 
 
+def normalize_answer(text: str) -> str:
+    """Normalize an answer for equality comparison across agents.
+
+    Lowercases and strips surrounding whitespace and common punctuation or
+    currency symbols, so answers that mean the same thing but differ in
+    casing or formatting ("Yes" vs "yes", "$0.05" vs "0.05") compare equal.
+    Correction: the folder previously compared answers by exact string after
+    only a whitespace strip, which would have split votes or blocked debate
+    convergence on cosmetically different but semantically identical
+    answers. Used by `majority_vote` and by `debate.run_debate`.
+    """
+    return text.strip().strip("$€£.,!?:;\"'").strip().lower()
+
+
 @dataclass
 class VoteResult:
     """The outcome of a majority-vote aggregation.
 
     Attributes:
-        winner: The vote text that received the most votes.
-        counts: Every distinct vote mapped to how many workers cast it.
-        unanimous: True if every worker cast the same vote.
+        winner: The vote text (original casing) that received the most votes.
+        counts: Every distinct normalized vote mapped to how many workers cast it.
+        unanimous: True if every worker cast the same vote once normalized.
     """
 
     winner: str
@@ -39,9 +53,11 @@ class VoteResult:
 def majority_vote(results: list[WorkerResult]) -> VoteResult:
     """Aggregate classification-shaped worker outputs by majority vote.
 
-    Each result's `content`, stripped, is treated as one vote. Ties are
-    broken by the order votes were cast (the order of `results`), so the
-    outcome is deterministic rather than depending on dict iteration order.
+    Each result's `content` is treated as one vote, tallied by its
+    `normalize_answer` form so cosmetically different but equivalent votes
+    ("Yes" and "yes") are not split. Ties are broken by the order votes were
+    cast (the order of `results`), so the outcome is deterministic rather
+    than depending on dict iteration order.
 
     Args:
         results: Worker outputs to tally. Only "ok" results vote; a worker
@@ -54,10 +70,10 @@ def majority_vote(results: list[WorkerResult]) -> VoteResult:
     votes = [r.content.strip() for r in results if r.status == "ok"]
     if not votes:
         raise ValueError("majority_vote received no ok results to tally")
-    counts = Counter(votes)
+    counts = Counter(normalize_answer(v) for v in votes)
     top_count = max(counts.values())
     # Break ties by first-cast order rather than Counter's insertion-derived order.
-    winner = next(v for v in votes if counts[v] == top_count)
+    winner = next(v for v in votes if counts[normalize_answer(v)] == top_count)
     return VoteResult(winner=winner, counts=dict(counts), unanimous=len(counts) == 1)
 
 
