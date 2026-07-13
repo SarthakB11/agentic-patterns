@@ -118,7 +118,10 @@ class MockProvider(Provider):
         temperature: float = 0.0,
         max_tokens: int = 1024,
     ) -> Completion:
-        self.calls.append({"messages": messages, "tools": tools, "system": system})
+        # Snapshot the message list: agent loops keep appending to the same
+        # list object after this call, and calls[i] must record what was
+        # actually sent on call i, not the final mutated history.
+        self.calls.append({"messages": list(messages), "tools": tools, "system": system})
         if self._index >= len(self._script):
             raise MockScriptExhausted(
                 f"Mock script exhausted after {len(self._script)} scripted turn(s); "

@@ -75,13 +75,9 @@ class OpenAIEmbedder(Embedder):
     """An `Embedder` backed by the OpenAI embeddings API."""
 
     def __init__(self, model: str | None = None, api_key: str | None = None, base_url: str | None = None) -> None:
-        try:
-            import httpx
-        except ImportError as exc:
-            raise ImportError(
-                'OpenAIEmbedder requires httpx. Install with: pip install "agentic-patterns[providers]"'
-            ) from exc
-        self._httpx = httpx
+        from agentic_patterns.core.providers import _require_httpx
+
+        self._httpx = _require_httpx()
         self.api_key = api_key or os.environ.get("OPENAI_API_KEY")
         if not self.api_key:
             raise ValueError("OPENAI_API_KEY is not set")

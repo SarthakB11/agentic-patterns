@@ -333,3 +333,16 @@ def test_get_embedder_env_var_override(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("AGENTIC_PATTERNS_EMBEDDER", "not-a-real-embedder")
     with pytest.raises(ValueError):
         get_embedder()
+
+
+def test_mock_provider_snapshots_messages_per_call() -> None:
+    """calls[i] must record what was sent on call i, even if the caller
+    keeps appending to the same history list afterward, as agent loops do."""
+    provider = MockProvider(["first", "second"])
+    history = [Message.user("question")]
+    provider.complete(history)
+    history.append(Message.assistant("first"))
+    provider.complete(history)
+
+    assert len(provider.calls[0]["messages"]) == 1
+    assert len(provider.calls[1]["messages"]) == 2
