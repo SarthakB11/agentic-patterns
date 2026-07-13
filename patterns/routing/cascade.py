@@ -15,10 +15,16 @@ Two related but distinct variants live here, both routing across model
   model, hard ones straight to a capable one.
 
 `run_baseline_comparison_demo` adds the two baselines the expansion section
-calls for: a random-choice router and an always-strong router. A learned or
-heuristic router only earns its complexity if it beats random on quality
-and beats always-strong on cost; the demo makes both comparisons explicit
-on a small fixed dataset instead of asserting the claim.
+calls for: a random-choice router and an always-strong router. This is the
+right idea but an incomplete benchmark per LLMRouterBench (Li et al.,
+arXiv:2601.07206): it has no oracle upper bound, so the "the gap to oracle
+is mostly model-recall, not routing cleverness" finding never shows up
+here; it charges no cost for a classifier's own call, so an LLM-classifier
+or cascade router looks free to run; and it only ever scores `select_tier`,
+never `rule_based` / `semantic` / `llm_classifier`. `router_eval.py` is the
+generalization that adds the oracle, the classifier-overhead cost, and the
+other routers; treat this demo as one dataset's worth of the idea, not the
+whole benchmark.
 """
 
 from __future__ import annotations
@@ -35,11 +41,18 @@ _STRONG_SYSTEM = "You are a careful expert. Answer precisely and show the key re
 _CHEAP_SYSTEM = "Answer briefly."
 
 # (question, tier a difficulty heuristic should pick)
+# Extended for router_eval.py and threshold_sweep.py: the original four rows
+# stay first (unchanged, so existing demos and tests keep their exact
+# numbers), with four more added for a less trivial benchmark.
 _DIFFICULTY_DATASET: list[tuple[str, str]] = [
     ("What is the capital of France?", "cheap"),
     ("What year did the company IPO?", "cheap"),
     ("Derive the break-even price given fixed cost, variable cost, and volume.", "strong"),
     ("Compare the tax implications of the two acquisition structures and recommend one.", "strong"),
+    ("What is 15% of 200?", "cheap"),
+    ("List the three primary colors.", "cheap"),
+    ("Optimize the marketing budget allocation across three channels to maximize ROI.", "strong"),
+    ("Prove that the sum of the first n odd numbers equals n squared.", "strong"),
 ]
 
 _HARD_SIGNALS = ("derive", "compare", "prove", "optimize", "recommend", "tax implications", "break-even")
@@ -53,6 +66,19 @@ def quality_check(answer: str) -> bool:
     Real systems might instead score against a rubric or a second model
     call; this stays a local heuristic so escalation decisions are visible
     and free.
+
+    The heuristic is honest about what it misses: a short-but-wrong answer
+    that is long enough and hedge-free (for example a confident, fluent, and
+    incorrect number) passes here even though a real verifier would reject
+    it. FrugalGPT's own quality estimator and the 2025 cascade papers
+    (Fanconi and van der Schaar, arXiv:2506.11887; Zellinger, Liu, Thomson,
+    arXiv:2502.09054) use a model-based scorer instead; `verified_cascade.py`
+    builds that faithful version, gated by a scripted judge model rather
+    than this length-plus-hedge check. There is also a cost asymmetry worth
+    naming: this heuristic is free, a model-based verifier is not (it is
+    another `Provider.complete()` call), and cost-optimal serving has to
+    charge for it; `router_eval.py` charges a classifier's own call cost for
+    exactly this reason.
     """
     lowered = answer.lower()
     return len(answer.strip()) >= 40 and not any(signal in lowered for signal in _WEAK_SIGNALS)

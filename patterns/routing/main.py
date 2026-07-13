@@ -30,6 +30,16 @@ with scripted, coherent conversations, no network call and no API key:
 8. Handoff routing: the triage model transfers the conversation to a
    sub-agent by calling a tool, and the sub-agent answers directly with no
    return trip through triage.
+9. Router benchmark (`router_eval.py`): every router above, scored against
+   random-choice, always-cheapest, always-strongest, and an oracle.
+10. Threshold sweep (`threshold_sweep.py`): a continuous score against a
+    swept cost threshold, tracing the cost-quality frontier.
+11. Verified cascade (`verified_cascade.py`): a three-tier cascade gated by
+    a scripted model judge, escalating on a low verdict and abstaining to
+    a human when even the strong tier fails review.
+12. Robustness (`robustness.py`): route flip rate under paraphrase for the
+    rule, semantic, and reasoning-mode routers, plus the safety invariant
+    that a sensitive input never flips toward a weaker handler.
 
 It closes with one end-to-end pipeline wiring an input through semantic
 classification, a threshold check, dispatch, and a fallback to human if
@@ -52,7 +62,20 @@ from __future__ import annotations
 
 from agentic_patterns import Message, get_provider
 
-from patterns.routing import cascade, escalation, fallback, handoff, llm_classifier, reasoning_mode, rule_based, semantic
+from patterns.routing import (
+    cascade,
+    escalation,
+    fallback,
+    handoff,
+    llm_classifier,
+    reasoning_mode,
+    robustness,
+    router_eval,
+    rule_based,
+    semantic,
+    threshold_sweep,
+    verified_cascade,
+)
 from patterns.routing.registry import Route, RouteDecision, RouteRegistry
 from patterns.routing.transcript import format_decision
 
@@ -136,8 +159,9 @@ def main() -> None:
     print(format_decision(passed, title="4a. Cascade (cheap tier passes quality check)"))
     print(format_decision(escalated, title="4b. Cascade (cheap tier fails, escalates to strong)"))
     tier_decisions = cascade.run_capability_selection_demo()
-    for d in tier_decisions:
-        print(format_decision(d, title="4c. Capability model selection (decided up front)"))
+    print("4c. Capability model selection (decided up front):")
+    for (question, _), d in zip(cascade._DIFFICULTY_DATASET, tier_decisions):
+        print(f"    {d.route:6} <- {question}")
     baselines = cascade.run_baseline_comparison_demo()
     print("4d. Baseline comparison on the difficulty dataset:")
     for key, value in baselines.items():
@@ -167,11 +191,38 @@ def main() -> None:
     print(format_decision(answered_directly, title="8b. Handoff routing (triage answers directly, no transfer)"))
     print()
 
-    end_to_end = run_end_to_end_demo("I forgot my account password and cannot log in")
-    print(format_decision(end_to_end, title="9. End-to-end: classify, threshold, dispatch, fallback"))
+    print("9. Router benchmark: every router vs. random, always-cheap/strong, and an oracle")
+    print(router_eval.render_table(router_eval.run_benchmark()))
     print()
 
-    print("All eight sub-variants and the end-to-end pipeline completed without exhausting their scripts.")
+    frontier, tight_point, loose_point = threshold_sweep.run_threshold_sweep_demo()
+    print("10. Threshold sweep: continuous score vs. a swept cost threshold")
+    for p in frontier:
+        print(f"    t={p.t:<4} accuracy={p.accuracy:.3f} cost={p.cost:5.1f} strong_fraction={p.strong_fraction:.2f} flips={p.flips_from_previous}")
+    print(f"    tight budget (20.0) picks t={tight_point.t} (cost={tight_point.cost}); loose budget (50.0) picks t={loose_point.t} (cost={loose_point.cost})")
+    print()
+
+    accepted, escalated, abstained = verified_cascade.run_verified_cascade_demo()
+    print("11. Verified cascade: model-judge escalation with abstention")
+    for label, d in (("accept-on-cheap", accepted), ("defer-then-accept-on-strong", escalated), ("defer-defer-abstain", abstained)):
+        print(f"    {label:28} route={d.route:6} attempts={d.attempts}  escalated={d.metadata['escalated']}  abstained={d.metadata['abstained']}  provider_calls={d.metadata['provider_calls']}")
+    print()
+
+    table, boundary, escalation_safety, reasoning_safety = robustness.run_robustness_demo()
+    print("12. Robustness: route flip rate under paraphrase, and the safety invariant")
+    for router_name, per_query in table.items():
+        avg = sum(per_query.values()) / len(per_query)
+        print(f"    {router_name:15} avg_flip_rate={avg:.2f}")
+    print(f"    semantic boundary query flip_rate={boundary[0]:.2f}  far-from-boundary query flip_rate={boundary[1]:.2f}")
+    print(f"    escalation safety invariant: {'passed' if escalation_safety.passed else 'FAILED'}")
+    print(f"    reasoning-mode safety invariant: {'passed' if reasoning_safety.passed else 'FAILED'}")
+    print()
+
+    end_to_end = run_end_to_end_demo("I forgot my account password and cannot log in")
+    print(format_decision(end_to_end, title="13. End-to-end: classify, threshold, dispatch, fallback"))
+    print()
+
+    print("All twelve sub-variants and the end-to-end pipeline completed without exhausting their scripts.")
 
 
 if __name__ == "__main__":

@@ -27,6 +27,8 @@ flowchart TD
     I -->|chain exhausted| D
 ```
 
+This is the category/tier dispatch pipeline; `router_eval.py` and `threshold_sweep.py` evaluate routers offline rather than sit in this runtime path, and `verified_cascade.py` is a second, three-tier cascade (cheap, strong, human) that swaps the sensitive-topic escalation for a model-judge verdict. One more safety branch is not pictured: `reasoning_mode.py`'s decision (reason or answer directly) is a separate axis from the one this diagram dispatches, and `reasoning_mode.enforce_reasoning_safety` applies the same sensitive-topic override to it, so a sensitive input never lands on the no-reasoning path either.
+
 ## Variants implemented
 
 - `rule_based.py`: keyword/regex dispatch, standard library only, no model call.
@@ -37,8 +39,12 @@ flowchart TD
 - `escalation.py`: human escalation triggered by a below-threshold score or a sensitive-topic keyword; a sensitive-topic flag overrides even a fully confident decision, so a misroute never routes a sensitive input to a weaker handler.
 - `reasoning_mode.py`: a binary "reason or not" router, distinct from tier or category selection, that decides whether a prompt gets a chain-of-thought system prompt.
 - `handoff.py`: the triage model transfers the conversation to a sub-agent by calling a `transfer_to_<name>` tool; the sub-agent then owns the rest of the conversation instead of returning through triage.
+- `router_eval.py`: benchmarks every router above against random-choice, always-cheapest, always-strongest, and an oracle, charging each router its own classifier overhead, reproducing LLMRouterBench's "many routers barely beat a baseline" finding at a small offline scale.
+- `threshold_sweep.py`: a continuous score against a swept threshold, RouteLLM's operating shape, tracing the cost-quality frontier and picking the threshold that meets a cost budget.
+- `verified_cascade.py`: a three-tier cascade (cheap, strong, human) gated by a scripted model judge at each hop instead of `cascade.py`'s length-plus-hedge heuristic, abstaining to a human when even the strong tier fails review.
+- `robustness.py`: measures how often the rule-based, semantic, and reasoning-mode routers flip their route under a meaning-preserving paraphrase, and asserts the safety invariant that a sensitive or adversarial-flavored input never flips toward a weaker handler or a no-reasoning mode.
 
-Skipped: trained-classifier / learned routing (RouteLLM-style). The brief's must-cover checklist does not list it as required, and a faithful offline version would need a real labeled preference dataset and a training dependency outside this repo's stdlib-plus-`httpx` scope; the taxonomy and its accuracy caveats are covered in this README's Sources instead.
+Skipped: training a learned router (RouteLLM's matrix factorization or BERT classifier). Training needs a labeled preference dataset and a training dependency outside this repo's stdlib-plus-`httpx` scope. The operable half of RouteLLM, a continuous score against a swept threshold, is not skipped: `threshold_sweep.py` builds it offline, without the training step.
 
 ## Run it
 
@@ -60,7 +66,17 @@ route: human  (method=escalation, score=0.900, attempts=1)
   escalation_reason: sensitive_topic
   original_route: billing
 ...
-All eight sub-variants and the end-to-end pipeline completed without exhausting their scripts.
+9. Router benchmark: every router vs. random, always-cheap/strong, and an oracle
+router           dataset   accuracy    cost  beats_random  beats_strong$  oracle_gap           verdict
+oracle           category     1.000     8.0          True            n/a       0.000        (baseline)
+...
+cascade          tier         1.000    48.0          True           True       0.000  earns_complexity
+select_tier      tier         1.000    44.0          True           True       0.000  earns_complexity
+...
+    escalation safety invariant: passed
+    reasoning-mode safety invariant: passed
+...
+All twelve sub-variants and the end-to-end pipeline completed without exhausting their scripts.
 ```
 
 ## Real providers
@@ -72,7 +88,10 @@ Set `AGENTIC_PATTERNS_PROVIDER=openai` (with `OPENAI_API_KEY` set) or `AGENTIC_P
 - Antonio Gulli, _Agentic Design Patterns_ (Springer, 2025), Chapter 2 "Routing." LLM-based, embedding-based, and rule/ML routing with LangChain/LangGraph, CrewAI, and Google ADK.
 - Chip Huyen, _AI Engineering_ (O'Reilly, 2025). Router (intent classifier) and model gateway: cheap-model routing, centralized access, fallback.
 - Anthropic, "Building Effective Agents" (2024), Routing section: classify and dispatch; easy questions to a small model, hard ones to a capable model. https://www.anthropic.com/engineering/building-effective-agents
-- Chen, Zaharia, Zou, "FrugalGPT" (2023). LLM cascade with router, quality estimator, and stop judge. https://arxiv.org/abs/2305.05176
-- Ong et al., "RouteLLM: Learning to Route LLMs with Preference Data" (2024). Learned routers from preference data; treat the reported roughly 2x cost reduction as workload specific, since LLMRouterBench (Li et al., arXiv:2601.07206) finds many routers near a random or single-strong-model baseline under unified evaluation. https://arxiv.org/abs/2406.18665
-- Wang et al., "When to Reason: Semantic Router for vLLM" (2025). Reasoning-mode routing: 10.2-point MMLU-Pro gain with 47.1% lower latency and 48.5% fewer tokens versus always reasoning. https://arxiv.org/abs/2510.08731
-- Kassem, Scholkopf, Jin, "How Robust Are Router-LLMs?" (2025). Preference-trained routers misroute by category, including sending adversarial inputs to weaker handlers; sensitive inputs should escalate up, never down. https://arxiv.org/abs/2504.07113
+- Lingjiao Chen, Matei Zaharia, James Zou, "FrugalGPT: How to Use Large Language Models While Reducing Cost and Improving Performance." arXiv:2305.05176. LLM cascade: router, quality estimator, stop judge; the model-based verifier `verified_cascade.py` builds. https://arxiv.org/abs/2305.05176
+- Isaac Ong, Amjad Almahairi, Vincent Wu, Wei-Lin Chiang, Tianhao Wu, Joseph E. Gonzalez, M. Waleed Kadous, Ion Stoica, "RouteLLM: Learning to Route LLMs with Preference Data." arXiv:2406.18665. Learned router predicts a win-rate score; a swept threshold trades cost for quality, the operating shape `threshold_sweep.py` builds without the training. https://arxiv.org/abs/2406.18665
+- Chen Wang, Xunzhuo Liu, Yuhan Liu, Yue Zhu, Xiangxi Mo, Junchen Jiang, Huamin Chen, "When to Reason: Semantic Router for vLLM." arXiv:2510.08731. Reasoning-mode routing: 10.2-point MMLU-Pro gain with 47.1% lower latency and 48.5% fewer tokens versus always reasoning. https://arxiv.org/abs/2510.08731
+- Aly M. Kassem, Bernhard Scholkopf, Zhijing Jin, "How Robust Are Router-LLMs? Analysis of the Fragility of LLM Routing Capabilities." arXiv:2504.07113. DSC benchmark; category-driven misrouting; jailbreaks routed to weaker models; preference-data privacy and backdoor exposure. https://arxiv.org/abs/2504.07113
+- Hao Li, Yiqun Zhang, Zhaoyan Guo, Chenxu Wang, Shengji Tang, Qiaosheng Zhang, Yang Chen, Biqing Qi, Peng Ye, Lei Bai, Zhen Wang, Shuyue Hu, "LLMRouterBench: A Massive Benchmark and Unified Framework for LLM Routing." arXiv:2601.07206. 400K instances, 21 datasets, 33 models, 10 baselines; many routers, commercial included, fail to reliably beat a simple baseline; oracle gap is model-recall. `router_eval.py` reproduces this methodology offline. https://arxiv.org/abs/2601.07206
+- Claudio Fanconi, Mihaela van der Schaar, "Cascaded Language Models for Cost-effective Human-AI Decision-Making." arXiv:2506.11887. Deferral policy (confidence decides accept-cheap or regenerate-with-large) plus abstention policy (escalate to a human on high uncertainty); the cheap/strong/human shape `verified_cascade.py` builds. https://arxiv.org/abs/2506.11887
+- Michael J. Zellinger, Rex Liu, Matt Thomson, "Cost-Saving LLM Cascades with Early Abstention." arXiv:2502.09054. Tuned confidence thresholds with early abstention; 13.0% cost and 5.0% error reduction for a 4.1% abstention increase over six benchmarks. https://arxiv.org/abs/2502.09054

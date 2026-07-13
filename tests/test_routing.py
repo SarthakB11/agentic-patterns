@@ -11,7 +11,21 @@ import pytest
 
 from agentic_patterns import Message, MockProvider, get_provider
 
-from patterns.routing import cascade, escalation, fallback, handoff, llm_classifier, main, reasoning_mode, rule_based, semantic
+from patterns.routing import (
+    cascade,
+    escalation,
+    fallback,
+    handoff,
+    llm_classifier,
+    main,
+    reasoning_mode,
+    robustness,
+    router_eval,
+    rule_based,
+    semantic,
+    threshold_sweep,
+    verified_cascade,
+)
 from patterns.routing.registry import Route, RouteDecision, RouteRegistry
 
 # --- registry mechanics -----------------------------------------------------
@@ -340,6 +354,221 @@ def test_handoff_unknown_transfer_target_raises() -> None:
     triage = get_provider(script=[scripted_tool_call("transfer_to_shipping", {})])
     with pytest.raises(ValueError):
         handoff.run_handoff("where is my order?", triage, {"billing": get_provider(script=[])})
+
+
+# --- reasoning-mode / escalation safety corrections --------------------------------
+
+
+def test_reasoning_mode_enforce_safety_overrides_direct_for_sensitive_input() -> None:
+    text = "there was a data breach affecting my account"
+    decision = reasoning_mode.classify_reasoning_mode(text)
+    assert decision.route == "direct"
+    enforced = reasoning_mode.enforce_reasoning_safety(decision, text)
+    assert enforced.route == "reason"
+    assert enforced.metadata["safety_override"] is True
+
+
+def test_reasoning_mode_enforce_safety_leaves_non_sensitive_direct_alone() -> None:
+    text = "What is the capital of Japan?"
+    decision = reasoning_mode.classify_reasoning_mode(text)
+    enforced = reasoning_mode.enforce_reasoning_safety(decision, text)
+    assert enforced is decision
+
+
+def test_escalation_is_sensitive_survives_whitespace_perturbation() -> None:
+    # Regression test: a multi-word keyword like "legal action" must still
+    # match after whitespace is mangled, not just on exact spacing.
+    policy = escalation.EscalationPolicy()
+    assert escalation.is_sensitive("I'm  considering  legal   action  over  this", policy)
+
+
+# --- router_eval: benchmark against baselines and an oracle ------------------------
+
+
+def test_router_eval_oracle_ceiling() -> None:
+    dataset = cascade._DIFFICULTY_DATASET
+    oracle = router_eval.oracle_score(dataset, "tier")
+    assert oracle.accuracy == 1.0
+    assert oracle.total_cost == sum(router_eval.route_cost(label) for _, label in dataset)
+
+
+def test_router_eval_weak_llm_classifier_caught_by_benchmark() -> None:
+    # Correct on only 2 of 8 rows (25%), the same accuracy the fixed-seed
+    # random baseline gets on this dataset: a router this weak must not be
+    # reported as beating random.
+    dataset = router_eval._CATEGORY_DATASET
+    weak_script = [
+        "ROUTE: technical",  # wrong (billing)
+        "ROUTE: account",  # wrong (technical)
+        "ROUTE: general",  # wrong (account)
+        "ROUTE: billing",  # wrong (general)
+        "ROUTE: billing",  # correct
+        "ROUTE: technical",  # correct
+        "ROUTE: general",  # wrong (account)
+        "ROUTE: account",  # wrong (general)
+    ]
+    weak_provider = get_provider(script=weak_script)
+    weak_score = router_eval.score_llm_classifier(weak_provider, dataset)
+    category_labels = ["billing", "technical", "account", "general"]
+    random_baseline = router_eval.random_score(dataset, "category", category_labels, seed=0)
+    oracle = router_eval.oracle_score(dataset, "category")
+    router_eval._finalize(weak_score, oracle, random_baseline, always_strong=None)
+    assert weak_score.accuracy == pytest.approx(0.25)
+    assert weak_score.beats_random is False
+
+
+def test_router_eval_cascade_cost_includes_burned_cheap_attempt() -> None:
+    dataset = cascade._DIFFICULTY_DATASET
+    score = router_eval.score_cascade(dataset)
+    strong_rows = sum(1 for _, tier in dataset if tier == "strong")
+    cheap_rows = len(dataset) - strong_rows
+    honest_cost = cheap_rows * router_eval._TIER_COSTS["cheap"] + strong_rows * (
+        router_eval._TIER_COSTS["cheap"] + router_eval._TIER_COSTS["strong"]
+    )
+    naive_strong_only_cost = cheap_rows * router_eval._TIER_COSTS["cheap"] + strong_rows * router_eval._TIER_COSTS["strong"]
+    assert score.total_cost == honest_cost
+    assert score.total_cost > naive_strong_only_cost
+
+
+def test_router_eval_llm_classifier_overhead_exceeds_rule_based_on_identical_routes() -> None:
+    dataset = router_eval._CATEGORY_DATASET
+    rule_score = router_eval.score_rule_based(dataset)
+    good_provider = get_provider(script=[f"ROUTE: {label}" for _, label in dataset])
+    llm_score = router_eval.score_llm_classifier(good_provider, dataset)
+    # Both get every row right (identical routes to the labels), so the
+    # entire cost gap is the LLM classifier's own per-call overhead.
+    assert rule_score.accuracy == llm_score.accuracy == 1.0
+    assert llm_score.total_cost > rule_score.total_cost
+
+
+def test_router_eval_benchmark_is_deterministic() -> None:
+    scores_a = router_eval.run_benchmark()
+    scores_b = router_eval.run_benchmark()
+    assert scores_a == scores_b
+
+
+# --- threshold_sweep: continuous score vs. swept threshold -------------------------
+
+
+def test_threshold_sweep_cost_is_non_increasing_as_threshold_rises() -> None:
+    frontier = threshold_sweep.sweep(cascade._DIFFICULTY_DATASET)
+    costs = [p.cost for p in frontier]
+    assert costs == sorted(costs, reverse=True)
+
+
+def test_threshold_sweep_pick_operating_point_meets_budget() -> None:
+    frontier = threshold_sweep.sweep(cascade._DIFFICULTY_DATASET)
+    point = threshold_sweep.pick_operating_point(frontier, cost_budget=50.0)
+    assert point.cost <= 50.0
+    assert all(p.accuracy <= point.accuracy for p in frontier if p.cost <= 50.0)
+
+
+def test_threshold_sweep_boundary_flip_at_exact_score() -> None:
+    score = 0.5
+    assert threshold_sweep.route_at_threshold(score, 0.5) == "strong"
+    assert threshold_sweep.route_at_threshold(score, 0.5 + 1e-9) == "cheap"
+
+
+def test_threshold_sweep_degenerate_thresholds_match_baselines() -> None:
+    dataset = cascade._DIFFICULTY_DATASET
+    frontier = threshold_sweep.sweep(dataset, thresholds=(0.0, 1.1))
+    always_strong_point, always_cheap_point = frontier
+    always_strong = router_eval.always_score("always_strong", dataset, "tier", "strong")
+    always_cheap = router_eval.always_score("always_cheap", dataset, "tier", "cheap")
+    assert always_strong_point.accuracy == always_strong.accuracy
+    assert always_strong_point.cost == always_strong.total_cost
+    assert always_cheap_point.accuracy == always_cheap.accuracy
+    assert always_cheap_point.cost == always_cheap.total_cost
+
+
+def test_threshold_sweep_is_deterministic() -> None:
+    a = threshold_sweep.sweep(cascade._DIFFICULTY_DATASET)
+    b = threshold_sweep.sweep(cascade._DIFFICULTY_DATASET)
+    assert a == b
+
+
+# --- verified_cascade: model-judge cascade with abstention -------------------------
+
+
+def test_verified_cascade_accepts_on_cheap_tier() -> None:
+    provider = get_provider(script=["A complete cheap-tier answer.", "ACCEPT"])
+    decision = verified_cascade.run_verified_cascade("a question", provider)
+    assert decision.route == "cheap"
+    assert decision.attempts == 1
+    assert len(provider.calls) == 2
+
+
+def test_verified_cascade_escalates_after_cheap_deferred() -> None:
+    provider = get_provider(script=["weak cheap answer", "DEFER", "solid strong answer", "ACCEPT"])
+    decision = verified_cascade.run_verified_cascade("a question", provider)
+    assert decision.route == "strong"
+    assert decision.attempts == 2
+    assert decision.metadata["escalated"] is True
+
+
+def test_verified_cascade_abstains_when_both_tiers_deferred() -> None:
+    provider = get_provider(script=["weak cheap", "DEFER", "weak strong", "DEFER"])
+    decision = verified_cascade.run_verified_cascade("a question", provider)
+    assert decision.route == "human"
+    assert decision.attempts == 3
+    assert decision.metadata["abstained"] is True
+
+
+def test_verified_cascade_cost_counts_judge_calls() -> None:
+    provider = get_provider(script=["A complete cheap-tier answer.", "ACCEPT"])
+    decision = verified_cascade.run_verified_cascade("a question", provider)
+    # Answer call plus judge call, not just the answer.
+    assert decision.metadata["provider_calls"] == 2
+
+
+def test_verified_cascade_rejects_short_but_wrong_answer_the_heuristic_would_pass() -> None:
+    plausible_but_wrong = "The refund will be issued within thirty days to your original payment method."
+    assert cascade.quality_check(plausible_but_wrong) is True  # the heuristic cascade would accept this
+    provider = get_provider(script=[plausible_but_wrong, "DEFER", "The actual correct strong-tier answer.", "ACCEPT"])
+    decision = verified_cascade.run_verified_cascade("a question", provider)
+    assert decision.route == "strong"  # the judge escalates where the heuristic would not
+
+
+# --- robustness: route stability under perturbation ---------------------------------
+
+
+def test_robustness_rule_based_flips_when_keyword_paraphrased_out() -> None:
+    query = "the app crashes every time I open settings"
+    rate = robustness.flip_rate(robustness._rule_route, query, [robustness.perturb_synonym_swap])
+    assert rate > 0
+
+
+def test_robustness_semantic_steadier_than_rule_on_same_perturbation() -> None:
+    query = "the app crashes every time I open settings"
+    rule_rate = robustness.flip_rate(robustness._rule_route, query, [robustness.perturb_synonym_swap])
+    semantic_rate = robustness.flip_rate(robustness._semantic_route, query, [robustness.perturb_synonym_swap])
+    assert semantic_rate < rule_rate
+
+
+def test_robustness_boundary_probe_flips_near_threshold_not_far() -> None:
+    boundary_rate, far_rate = robustness.boundary_probe()
+    assert boundary_rate > 0
+    assert far_rate == 0
+
+
+def test_robustness_escalation_safety_invariant_holds() -> None:
+    result = robustness.check_escalation_safety(escalation.apply_escalation)
+    assert result.passed
+    assert result.failures == []
+
+
+def test_robustness_reasoning_safety_invariant_holds() -> None:
+    result = robustness.check_reasoning_safety()
+    assert result.passed
+
+
+def test_robustness_safety_invariant_catches_broken_escalate_fn() -> None:
+    def ignores_sensitivity(decision: RouteDecision, text: str) -> RouteDecision:
+        return decision  # a regression: never checks whether text is sensitive
+
+    result = robustness.check_escalation_safety(ignores_sensitivity)
+    assert result.passed is False
+    assert len(result.failures) > 0
 
 
 # --- end-to-end pipeline (main.py) -----------------------------------------------

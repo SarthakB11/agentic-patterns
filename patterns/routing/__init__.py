@@ -4,7 +4,10 @@ This package implements the routing agentic pattern and its major
 sub-variants: rule-based routing, semantic (embedding-similarity) routing,
 LLM-classifier routing, cost/quality cascade and capability model
 selection, fallback / resilience routing, human-escalation routing,
-reasoning-mode routing, and handoff-style (transfer-of-control) routing.
+reasoning-mode routing, handoff-style (transfer-of-control) routing, a
+router benchmark against random/oracle baselines, a continuous-score
+threshold sweep, a model-judge verified cascade with abstention, and a
+route-stability-under-perturbation check.
 
 `registry.py` holds the shared route registry and routing metadata every
 variant reads or returns; `transcript.py` renders a `RouteDecision`

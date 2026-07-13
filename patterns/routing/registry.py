@@ -59,7 +59,17 @@ class RouteDecision:
         route: The chosen route's name.
         score: A confidence, similarity, or quality score in [0, 1] if the
             classifier produced one, else None (rule-based routing has no
-            natural score, for example).
+            natural score, for example). This field mixes two different
+            things across the folder's variants, and callers should not
+            conflate them: a calibrated, genuinely continuous score (the
+            semantic router's cosine similarity, a judge's verdict) versus a
+            placeholder flag that only ever takes a constant value (`rule_based`
+            always reports 1.0 on a match; `reasoning_mode` reports 1.0 or
+            0.0 as a binary mode marker, not a probability). Both are valid
+            uses of the field, but only the former is safe to threshold-sweep
+            or average; `threshold_sweep.py` depends on a score that is
+            actually continuous and documents its own stand-in rather than
+            reusing one of the placeholder flags.
         method: Which classifier produced this decision, e.g. "rule",
             "semantic", "llm_classifier", "cascade", "fallback",
             "escalation", "reasoning_mode", "handoff".

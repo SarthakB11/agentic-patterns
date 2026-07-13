@@ -14,6 +14,15 @@ explicit, inspectable rule.
 The classifier here is a lightweight heuristic (multi-step or analytical
 language, or a long prompt), not a model call, since deciding whether to
 spend the tokens on reasoning should itself stay cheap.
+
+`enforce_reasoning_safety` is the correction the expansion research adds:
+`escalation.py` already treats a sensitive-topic flag as an override that
+always wins for the category/tier axis, but nothing stopped a sensitive or
+adversarial-flavored prompt from landing on the direct (no-reasoning) mode,
+which is the reasoning-axis version of the same misroute-downward failure
+Kassem, Scholkopf, and Jin document for category routers (arXiv:2504.07113).
+This reuses `escalation.is_sensitive` rather than duplicating the keyword
+list, so both axes stay in sync.
 """
 
 from __future__ import annotations
@@ -22,6 +31,7 @@ import re
 
 from agentic_patterns import Message, Provider, get_provider
 
+from patterns.routing.escalation import EscalationPolicy, is_sensitive
 from patterns.routing.registry import RouteDecision
 
 _REASONING_SIGNALS = re.compile(
@@ -48,6 +58,35 @@ def classify_reasoning_mode(text: str) -> RouteDecision:
     if needs_reasoning:
         return RouteDecision(route="reason", score=1.0, method="reasoning_mode", metadata={"signal": "matched"})
     return RouteDecision(route="direct", score=0.0, method="reasoning_mode", metadata={"signal": "none"})
+
+
+def enforce_reasoning_safety(
+    decision: RouteDecision, text: str, policy: EscalationPolicy | None = None
+) -> RouteDecision:
+    """Override a "direct" decision to "reason" when `text` is sensitive.
+
+    A sensitive or high-stakes prompt should never be routed to the mode
+    that skips the reasoning pass, mirroring `escalation.apply_escalation`'s
+    rule that a sensitive flag overrides a confident decision. A prompt
+    already routed to "reason" is left alone; this only ever moves a
+    decision up toward more care, never down.
+
+    Args:
+        decision: The upstream reasoning-mode decision.
+        text: The original input, checked for sensitive-topic keywords.
+        policy: Sensitivity keywords to check against; defaults to
+            `escalation.EscalationPolicy()`'s keyword list, shared with the
+            category/tier escalation axis.
+    """
+    policy = policy or EscalationPolicy()
+    if decision.route == "direct" and is_sensitive(text, policy):
+        return RouteDecision(
+            route="reason",
+            score=1.0,
+            method="reasoning_mode",
+            metadata={**decision.metadata, "safety_override": True},
+        )
+    return decision
 
 
 def answer_with_reasoning_mode(text: str, provider: Provider, decision: RouteDecision | None = None) -> str:

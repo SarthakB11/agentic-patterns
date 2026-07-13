@@ -49,8 +49,16 @@ class EscalationPolicy:
 
 
 def is_sensitive(text: str, policy: EscalationPolicy) -> bool:
-    """Check whether `text` contains any of `policy.sensitive_keywords`."""
-    lowered = text.lower()
+    """Check whether `text` contains any of `policy.sensitive_keywords`.
+
+    Whitespace is collapsed before matching (`"legal  action"`, extra
+    spaces and all, still matches the keyword `"legal action"`), so a
+    multi-word keyword's substring match does not depend on exact spacing.
+    `robustness.py`'s whitespace perturbation is what surfaced this: a
+    keyword match that only works on exact spacing should not be trusted
+    to survive a paraphrase.
+    """
+    lowered = " ".join(text.lower().split())
     return any(keyword in lowered for keyword in policy.sensitive_keywords)
 
 
