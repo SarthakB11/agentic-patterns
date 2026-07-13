@@ -2,6 +2,10 @@
 
 ReAct is an agent control pattern that interleaves natural-language reasoning with tool use inside a single loop. At each step the model emits a Thought, then an Action (a tool call with arguments), and the runtime returns an Observation; the Thought/Action/Observation triple is appended to a running scratchpad and the model is prompted again with the accumulated history. The loop repeats until the model emits a terminal Finish action or a stop condition fires.
 
+![ReAct demo](../../docs/demos/react.gif)
+
+_Recorded from `python3 -m patterns.react.main`, offline, no API key. Regenerate with `python3 tools/record_demos.py record-all`._
+
 ## When to use it
 
 Use ReAct when a task needs several tool calls whose arguments depend on earlier results, when the number of steps is not known ahead of time, or when you want a readable trace for debugging and trust. It fits multi-hop lookups, retrieval-augmented question answering, and any workflow where the model must decide dynamically what to do next.

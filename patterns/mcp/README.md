@@ -2,6 +2,10 @@
 
 The Model Context Protocol is an open standard for connecting AI applications to external tools, data, and reusable prompts through one wire format: JSON-RPC 2.0. It defines three roles: a host is the AI application the user interacts with, a client lives inside the host and holds one connection to one server, and a server exposes tools, resources, and prompts to whichever client connects. A connection starts with an `initialize` handshake that negotiates protocol version and capabilities, then moves into an operation phase where the client discovers and invokes what the server offers. MCP turns the N-times-M integration problem, every host wiring up every tool by hand, into N plus M: any MCP host can talk to any MCP server.
 
+![MCP demo](../../docs/demos/mcp.gif)
+
+_Recorded from `python3 -m patterns.mcp.main`, offline, no API key. Regenerate with `python3 tools/record_demos.py record-all`._
+
 ## When to use it
 
 Reach for MCP when a tool or data integration needs to be reusable across different hosts, or when a tool should run as a separate process with its own dependencies, secrets, or trust boundary. It fits an agent that draws on several independent capability providers and needs to discover what each one offers at runtime rather than hard-coding a tool list. Skip it when a plain in-process function call will do: a script calling one Python function gains nothing from JSON-RPC framing and subprocess management. It is also a poor fit for high-throughput streaming data planes, where the request-response envelope adds overhead, and for a tool surface that never changes and lives in the same codebase as the agent.

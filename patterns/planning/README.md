@@ -2,6 +2,10 @@
 
 Planning is the pattern in which an agent first turns a goal into an explicit, inspectable plan and then carries that plan out, instead of deciding its next action one token at a time. Producing the plan is task decomposition: a planning phase reasons about the whole problem and commits to a structure, and a separate execution phase runs the steps, usually with tools. This is the front-loaded-reasoning counterpart to interleaved ReAct, where the model thinks, acts, and observes one step at a time.
 
+![Planning demo](../../docs/demos/planning.gif)
+
+_Recorded from `python3 -m patterns.planning.main`, offline, no API key. Regenerate with `python3 tools/record_demos.py record-all`._
+
 ## When to use it
 
 Use planning when a task has several dependent steps, when independent steps can run in parallel, when you want to review or gate a plan before anything executes (approvals, cost, safety), or when an interleaved agent tends to loop on a long-horizon goal. It works best when the sub-task structure is fairly predictable from the prompt and when you want to minimize model calls.

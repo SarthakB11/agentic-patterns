@@ -2,6 +2,10 @@
 
 Human-in-the-loop (HITL) is the pattern of pausing an autonomous agent at a defined point so a person can inspect a proposed action, then approve it, change it, reject it, or supply missing information before execution continues. The agent handles high-volume, low-risk work on its own; a human is inserted only at strategic decision points where stakes, uncertainty, irreversibility, or compliance demand judgment. The defining mechanic is a gate: the agent produces a proposed action but does not perform any side effect until a human decision is recorded.
 
+![Human-in-the-loop demo](../../docs/demos/human_in_the_loop.gif)
+
+_Recorded from `python3 -m patterns.human_in_the_loop.main`, offline, no API key. Regenerate with `python3 tools/record_demos.py record-all`._
+
 ## When to use it
 
 Use an approval gate when an action is irreversible or expensive (sending money, deleting data, publishing content, signing a document), when it touches a regulated domain that mandates sign-off, when the model reports low confidence, or when a correction from the reviewer is worth capturing as an audit or training signal. It is also a reasonable default for a new agent: start with a human approving most actions, then widen automation as trust grows.

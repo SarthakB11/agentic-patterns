@@ -2,6 +2,10 @@
 
 Routing is the pattern of classifying an input and directing it to a specialized downstream handler: a different prompt, a tool or sub-agent, or a different model. It separates the decision of "who should answer this" from the answering itself, so each handler stays narrow instead of one general prompt covering every case. The classifier can be a rule, an embedding comparison, an LLM prompt, or a trained model, and it works at two altitudes: task routing (billing questions to the billing handler) and model routing (easy questions to a cheap model, hard ones to a strong model).
 
+![Routing demo](../../docs/demos/routing.gif)
+
+_Recorded from `python3 -m patterns.routing.main`, offline, no API key. Regenerate with `python3 tools/record_demos.py record-all`._
+
 ## When to use it
 
 Use routing when the input space splits into distinct categories better handled separately, and classification can be done accurately: you are stuffing one prompt with conditional instructions for unrelated cases, different inputs need different tools or safety rules, or most traffic is easy and a minority is hard. Model routing pays off when a cheap model answers the common case and a strong model is reserved for the tail.

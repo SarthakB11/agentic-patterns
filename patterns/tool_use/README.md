@@ -2,6 +2,10 @@
 
 Tool use (function calling) is the pattern where a model, instead of only producing free text, emits a structured request to invoke an external function. The app describes a catalog of tools, each with a name, description, and JSON Schema of parameters; the model reads the request plus the catalog and decides whether to answer directly or return a tool name and typed arguments. The app parses that call, validates it, runs the real function, and feeds the result back so the model can call more tools or produce a final answer. The model never runs code itself; it only proposes calls, and the runtime executes them inside a controlled boundary.
 
+![Tool use demo](../../docs/demos/tool_use.gif)
+
+_Recorded from `python3 -m patterns.tool_use.main`, offline, no API key. Regenerate with `python3 tools/record_demos.py record-all`._
+
 ## When to use it
 
 Use tool calling when the task needs information the model does not hold, exact or verifiable computation, or an effect in an external system, or when a typed payload beats prose parsed with regexes. Skip it when one deterministic function would always be called regardless of input (call it directly), when the task is pure generation with no external dependency, or when the latency and cost of extra model turns cannot be absorbed. A large tool catalog also degrades selection accuracy: RAG-MCP measured baseline selection accuracy collapsing to 13.6 percent on a catalog flooded with near-duplicate tools, recovered to 43.1 percent by retrieval-based selection, which is what `tool_search.py` now demonstrates directly instead of only asserting.

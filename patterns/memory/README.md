@@ -2,6 +2,10 @@
 
 Memory is the set of mechanisms that let an agent carry information across turns and sessions, beyond a single prompt, along two horizons. Short-term memory is the working context the model can currently see: system prompt, running conversation, and tool outputs, bounded by the token window and gone once the session ends. Long-term memory is an external store, usually a vector database, holding facts, past events, and learned procedures; items are written to it selectively and retrieved back into the window by similarity search when relevant. The pattern is the plumbing deciding what to keep, evict, persist, and pull back in.
 
+![Memory demo](../../docs/demos/memory.gif)
+
+_Recorded from `python3 -m patterns.memory.main`, offline, no API key. Regenerate with `python3 tools/record_demos.py record-all`._
+
 ## When to use it
 
 Reach for memory when a task spans many turns and the raw history no longer fits the token budget, when the agent must personalize across separate sessions, or when it should learn from past runs instead of repeating the same mistake. Do not add a vector store prematurely: if the whole history fits in context, a plain buffer is correct and a database only adds moving parts, though stable rules still belong pinned to the system prompt even when they fit, since constraints placed mid-history suffer positional decay. For exact, authoritative recall (order totals, legal text) prefer a structured query over an approximate similarity store, and weigh privacy and retention obligations before persisting user data.

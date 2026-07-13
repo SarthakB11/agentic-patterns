@@ -16,6 +16,10 @@ cd agentic-patterns
 python3 -m patterns.react.main
 ```
 
+![ReAct demo](docs/demos/react.gif)
+
+_Every pattern folder has a GIF like this one, recorded straight from its `main.py`, offline, no API key._
+
 That already works. There is nothing to install and no key to set: the mock provider replays a scripted, coherent conversation, so each pattern's control flow (tool calls, critiques, routing decisions, handshakes) completes exactly as it would against a live model, deterministically.
 
 To run the test suite:

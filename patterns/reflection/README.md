@@ -2,6 +2,10 @@
 
 Reflection is the pattern where an agent evaluates its own work against explicit criteria and uses that evaluation to revise the work. A generator produces a draft, a critic names what is wrong with it, and a refiner rewrites the draft using that feedback; the three steps repeat until the output is good enough or a limit is hit. Current framework docs (LangGraph, OpenAI Agents SDK) call this same loop the evaluator-optimizer workflow.
 
+![Reflection demo](../../docs/demos/reflection.gif)
+
+_Recorded from `python3 -m patterns.reflection.main`, offline, no API key. Regenerate with `python3 tools/record_demos.py record-all`._
+
 ## When to use it
 
 Reach for reflection when output quality matters more than latency and token cost: long-form writing, code generation checked against tests, multi-step plans, or any task with a clear notion of "better" and a cheap way to check it. It is strongest when a trustworthy external signal exists, such as a test suite, a compiler, or a scoring rubric. Skip it when a task is simple enough to get right in one shot, when the budget is tight, or when there is no external signal to ground the critique: a model grading its own reasoning from memory alone can leave accuracy flat or make it worse.

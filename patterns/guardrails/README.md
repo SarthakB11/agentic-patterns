@@ -2,6 +2,10 @@
 
 A guardrail is a checkpoint that inspects data crossing a trust boundary around a language model and decides whether to allow it, change it, or block it. Input guards run before the model sees a request; output guards run after generation; a pre-tool guard sits between the model and any tool call it wants to make. The guiding principle is defense in depth: safety is layered from input checks through output filters to human review, and no single guard is enough (Gulli, Chapter 18). Model output is itself treated as untrusted data and sanitized like any other external input (OWASP LLM05).
 
+![Guardrails demo](../../docs/demos/guardrails.gif)
+
+_Recorded from `python3 -m patterns.guardrails.main`, offline, no API key. Regenerate with `python3 tools/record_demos.py record-all`._
+
 Checkpoint inspection alone is not a reliable defense against indirect prompt injection: Zhan et al., "Adaptive Attacks Break Defenses Against Indirect Prompt Injection Attacks on LLM Agents" (arXiv:2503.00061), bypassed eight published detection defenses with adaptively phrased attacks, holding attack-success-rate above 50 percent. The durable guarantee the 2025-2026 literature settled on is architectural: constrain the agent so injected text has no path to a side effect, regardless of what it says. This folder covers both axes: the checkpoint guards the base pattern is known for, and the architectural guards (Plan-Then-Execute, Action-Selector, Context-Minimization, and a quarantine-plus-capability layer) that carry the actual guarantee.
 
 ## When to use it

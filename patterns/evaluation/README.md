@@ -2,6 +2,10 @@
 
 An evaluation loop turns "did this change make the system better or worse?" into a repeatable, automatable answer. It has three parts: a versioned eval set of input cases, one or more scorers that grade a candidate output per case (from exact programmatic checks to an LLM acting as a judge), and a regression gate that aggregates a run's scores and compares them to a baseline, returning pass or fail so CI can block a change that degrades quality.
 
+![Evaluation demo](../../docs/demos/evaluation.gif)
+
+_Recorded from `python3 -m patterns.evaluation.main`, offline, no API key. Regenerate with `python3 tools/record_demos.py record-all`._
+
 ## When to use it
 
 Use an evaluation loop whenever you iterate on a prompt, model, retrieval setup, or agent and need to know if a change helped. Reach for an LLM judge specifically when the output is open-ended (summaries, chat replies, extractions) so string equality and regex are too brittle, yet human grading of every candidate is too slow. Skip the judge when a deterministic check suffices: a verifiable answer (valid JSON, correct arithmetic, a passing unit test) is cheaper and perfectly reliable to check directly. Avoid LLM judges for high-stakes safety or legal decisions without human sign-off, and be careful using one as an optimization target, since a system tuned against a flawed judge learns to please the judge rather than the user.

@@ -2,6 +2,10 @@
 
 Retrieval-augmented generation grounds a model's answer in text fetched at query time from an external corpus, instead of relying only on what the model memorized during training. A RAG system splits documents into chunks, indexes them, retrieves the chunks most relevant to a question, places those chunks in the prompt, and asks the model to answer from them, citing what it used. Naive RAG does one dense-vector lookup and stuffs the results into the prompt; hybrid RAG combines keyword and vector search and fuses their rankings; reranking over-fetches candidates and reorders them with a model that reads the query and each candidate together. Retrieval also does not have to stay a flat, single-shot lookup: a deep-research loop decomposes a question and accumulates evidence across rounds, and a graph retriever follows entity structure across chunks for questions no single passage answers.
 
+![RAG demo](../../docs/demos/rag.gif)
+
+_Recorded from `python3 -m patterns.rag.main`, offline, no API key. Regenerate with `python3 tools/record_demos.py record-all`._
+
 ## When to use it
 
 Reach for RAG when answers depend on a knowledge base the model was not trained on or that changes often: internal docs, product manuals, tickets, or recent events. Use it when an answer must be attributable, so a reader can check a citation, or when the corpus is larger than a context window. Skip it when the model already knows the answer well and retrieval only adds latency and noise, when a task needs reasoning over a whole document rather than a few passages, or when the corpus is small enough to paste in full. RAG does not fix a weak generator: bad retrieval plus a confident model produces grounded-looking but wrong answers. The heavier variants here (deep research, graph RAG) carry their own cost-benefit question: reach for a graph only on multi-hop or corpus-level questions a flat retriever genuinely cannot serve, not by default (see `graph_rag.py`'s skeptic demo).
