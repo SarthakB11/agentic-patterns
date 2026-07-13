@@ -24,6 +24,15 @@ handful of related questions through ten variants of the pattern:
    path when nothing in the corpus matches the question at all.
 10. Agentic RAG: retrieval as a tool the model calls in a loop, broadening
     its own search when the first result is incomplete.
+11. Deep research: decompose into sub-questions, read into an evidence
+    notebook, spawn a gap-driven follow-up round, and synthesize a cited report.
+12. Graph RAG: an entity co-occurrence graph reaches a two-hop fact flat
+    retrieval misses, answers a corpus-level question by map-reduce over
+    community summaries, and is shown adding nothing on a single-hop question.
+13. Reasoning reranking: a pointwise judge grades each candidate 0-3 with a
+    reasoning trace, promoting a buried chunk and dropping zero-graded noise.
+14. Order-preserving assembly: chunks kept in document order instead of
+    score order, plus a k-sweep surfacing the inverted-U in chunk count.
 
 Every step runs entirely offline against `MockProvider` with scripted,
 coherent conversations: no network call, no API key, and the corpus and
@@ -45,7 +54,7 @@ from __future__ import annotations
 
 from agentic_patterns import Provider, get_embedder, get_provider
 
-from patterns.rag import agentic, contextual, grading, pipeline, query_transform, rerank
+from patterns.rag import agentic, contextual, deep_research, grading, graph_rag, order_preserve, pipeline, query_transform, reasoning_rerank, rerank
 from patterns.rag.bm25 import build_bm25_index, bm25_retrieve
 from patterns.rag.chunking import ScoredChunk
 from patterns.rag.corpus import DOCUMENTS, default_chunks
@@ -69,8 +78,8 @@ def _print_answer(result: pipeline.RagResult) -> None:
 
 
 def main() -> None:
-    """Run all ten RAG variant demos and print a readable transcript."""
-    print("RAG PATTERN: naive, hybrid, and reranked retrieval-augmented generation\n")
+    """Run all fourteen RAG variant demos and print a readable transcript."""
+    print("RAG PATTERN: naive, hybrid, graph, and reasoning-reranked retrieval-augmented generation\n")
 
     # 1. Ingestion --------------------------------------------------------
     chunks = default_chunks()
@@ -193,8 +202,52 @@ def main() -> None:
     print(f"  citations: {agentic_result.answer.citations}")
     print()
 
+    # 11. Deep research -----------------------------------------------------
+    print("=== 11. Deep research: decompose, read, spawn a gap-driven round, synthesize ===")
+    dr_result = deep_research.run_deep_research_demo(dense_index=dense_index, embedder=embedder)
+    print(f"  query: {dr_result.query}")
+    print(f"  sub-questions: {dr_result.sub_question_tree}")
+    print(f"  rounds used: {dr_result.rounds_used}, notebook entries: {len(dr_result.notebook)}")
+    print(f"  report: {dr_result.answer.answer}")
+    print(f"  citations: {dr_result.answer.citations}")
+    print()
+
+    # 12. Graph RAG -----------------------------------------------------
+    print("=== 12. Graph RAG: local two-hop win, global map-reduce, skeptic no-benefit ===")
+    graph_result = graph_rag.run_graph_rag_demo(dense_index=dense_index, embedder=embedder)
+    local_win = graph_rag.graph_adds_value(graph_result.local_result.chunk_ids, graph_result.local_flat_baseline)
+    skeptic_win = graph_rag.graph_adds_value(graph_result.skeptic_result.chunk_ids, graph_result.skeptic_flat_baseline)
+    print(f"  local search chunks: {graph_result.local_result.chunk_ids} (flat top-1: {graph_result.local_flat_baseline})")
+    print(f"  local search adds value over flat retrieval: {local_win}")
+    print(f"  global answer: {graph_result.global_result.answer.answer}")
+    print(f"  skeptic search chunks: {graph_result.skeptic_result.chunk_ids} (flat: {graph_result.skeptic_flat_baseline})")
+    print(f"  skeptic search adds value over flat retrieval: {skeptic_win}")
+    print()
+
+    # 13. Reasoning reranking -----------------------------------------------
+    print("=== 13. Reasoning reranking: a pointwise judge grades, then reasons before it ranks ===")
+    rr_query, rr_before, rr_after, rr_judgments = reasoning_rerank.run_reasoning_rerank_demo(
+        dense_index=dense_index, embedder=embedder
+    )
+    print(f"  query: {rr_query}")
+    print(f"  before rerank (dense order): {[sc.chunk.id for sc in rr_before]}")
+    print(f"  after rerank (graded, reasoned order): {[sc.chunk.id for sc in rr_after]}")
+    print(f"  top judgment: [{rr_judgments[0].chunk_id}] grade={rr_judgments[0].grade} because: {rr_judgments[0].rationale}")
+    print()
+
+    # 14. Order-preserving assembly and the k sweep -------------------------
+    print("=== 14. Order-preserving assembly: document order, plus the inverted-U on k ===")
+    op_query, op_score_ordered, op_order_preserved, op_sweep = order_preserve.run_order_preserve_demo(
+        dense_index=dense_index, embedder=embedder
+    )
+    print(f"  query: {op_query}")
+    print(f"  score order:      {[c.id for c in op_score_ordered]}")
+    print(f"  document order:   {[c.id for c in op_order_preserved]}")
+    print(f"  k sweep proxy: {[(p.k, p.proxy_score) for p in op_sweep.points]}, sweet spot k={op_sweep.sweet_spot_k}")
+    print()
+
     print(_RULE)
-    print("All ten RAG variant demos completed without exhausting their scripts.")
+    print("All fourteen RAG variant demos completed without exhausting their scripts.")
 
 
 def _provider_for_error_code_answer() -> Provider:

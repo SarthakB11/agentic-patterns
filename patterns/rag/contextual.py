@@ -13,6 +13,16 @@ token vectors into chunk vectors, needing no per-chunk model call; this
 module implements the LLM-blurb approach since it composes directly with
 this repo's mock-provider pattern, and notes late chunking as the production
 alternative rather than re-implementing it.
+
+This module demonstrates only the contextual-embedding half of Anthropic's
+recipe: the blurb is prepended before embedding, not before BM25 indexing.
+The full recipe is contextual embeddings plus contextual BM25 (the same
+blurb prepended to the text `bm25.py` indexes) plus a rerank pass over the
+fused result; Anthropic reports the full combination reduces failed
+retrieval substantially more than the embedding half alone. `hybrid.py`'s
+`build_bm25_index` and `rerank.py`'s `rerank_chunks` compose with this
+module's output to approximate the rest of the recipe, just not wired
+together as one function here.
 """
 
 from __future__ import annotations

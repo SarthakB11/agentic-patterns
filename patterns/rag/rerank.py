@@ -5,13 +5,19 @@ A bi-encoder (dense retrieval) embeds the query and each chunk separately,
 so it never lets the two interact. A reranker reads query and chunk
 together, which is more accurate but too slow to run over a whole corpus, so
 it only ever reorders a small shortlist a first-stage retriever already
-narrowed down. A production reranker is usually a trained cross-encoder
-(open-weight options like Qwen3-Reranker, arXiv:2506.05176, now compete with
+narrowed down. A production reranker used to mean a trained cross-encoder
+(open-weight options like Qwen3-Reranker, arXiv:2506.05176, competing with
 closed APIs); this module uses the LLM listwise variant instead, asking the
-provider to rank the shortlist directly, which trades some latency for
-needing no extra model. Rerankers cannot recover a chunk the first-stage
-retriever never fetched, so they help most when recall is already good and
-only the ordering is weak.
+provider to rank the shortlist directly in one call, which trades some
+latency for needing no extra model and no per-item score. Rerankers cannot
+recover a chunk the first-stage retriever never fetched, so they help most
+when recall is already good and only the ordering is weak.
+
+A silent cross-encoder score is no longer the frontier past this listwise
+call: Rank1 (Weller et al., arXiv:2502.18418) distills R1-style reasoning
+traces onto a reranker that spends test-time compute reasoning about each
+candidate before it grades it, producing a graded label plus an explainable
+rationale instead of only an order. `reasoning_rerank.py` is that sibling.
 """
 
 from __future__ import annotations

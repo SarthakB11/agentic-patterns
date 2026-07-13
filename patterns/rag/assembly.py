@@ -5,9 +5,21 @@ Three concerns, handled in order: drop near-duplicate chunks so the same
 sentence is not paid for twice in the token budget; fit what remains inside
 a token budget, since more chunks raise recall but crowd the prompt; and
 order the surviving chunks so the strongest evidence sits at the edges of
-the context rather than the middle. That last step counters the
-lost-in-the-middle effect (Liu et al., TACL 2024, arXiv:2307.03172), where
-models attend least to text in the middle of a long context.
+the context rather than the middle. That last step, `edge_order`, counters
+the lost-in-the-middle effect (Liu et al., TACL 2024, arXiv:2307.03172),
+where models attend least to text in the middle of a long context.
+
+Edge-order is one option among the ordering strategies this folder builds,
+not the assembly ordering. OP-RAG (Yu et al., arXiv:2409.01666) and
+"Long-Context LLMs Meet RAG" (Jin et al., arXiv:2410.05983) find that for a
+long-context reader, preserving each kept chunk's original document order is
+often competitive with or better than similarity order, and, more
+significantly, that answer quality is an inverted-U in the number of
+retrieved chunks `k`: past a sweet spot, added chunks act as hard negatives
+that pull the answer down. `order_preserve.py` implements that
+document-order sibling to `assemble_context` and a small `k`-sweep that
+surfaces the inverted-U, so choosing `k` is treated as at least as important
+a lever as choosing an order.
 """
 
 from __future__ import annotations

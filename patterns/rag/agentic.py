@@ -9,6 +9,14 @@ production equivalents include the OpenAI Agents SDK's hosted `file_search`
 tool and Anthropic's client-side `memory` tool (memory_20250818): retrieval
 becomes something the agent invokes, not a step that always runs before the
 model sees the question.
+
+This is the flat, single-tool version of agentic retrieval: one search tool,
+re-search on a hunch, and no memory of what an earlier search established
+beyond the raw chunks it returned. `deep_research.py` is the multi-step
+evolution the 2025 search-agent line (Search-R1, ReSearch, DeepResearcher)
+induced: decompose into sub-questions, retrieve and read per sub-question
+into an evidence notebook, check coverage, and synthesize with citations
+traced back to the notebook.
 """
 
 from __future__ import annotations

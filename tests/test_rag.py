@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import pytest
 
-from agentic_patterns import HashEmbedder, MockProvider
+from agentic_patterns import Completion, HashEmbedder, MockProvider
 
 from patterns.rag.agentic import run_agentic_rag, run_agentic_rag_demo
 from patterns.rag.assembly import assemble_context, deduplicate, edge_order, fit_to_budget
@@ -17,13 +17,26 @@ from patterns.rag.bm25 import build_bm25_index, bm25_retrieve, tokenize
 from patterns.rag.chunking import Chunk, Document, ScoredChunk, chunk_document
 from patterns.rag.contextual import build_contextual_index, run_contextual_demo
 from patterns.rag.corpus import default_chunks
+from patterns.rag.deep_research import run_deep_research, run_deep_research_demo
 from patterns.rag.dense import build_dense_index, dense_retrieve
 from patterns.rag.generation import ABSTAIN_ANSWER, extract_citations, generate_grounded_answer
 from patterns.rag.grading import grade_relevance, parse_sufficiency, run_sufficiency_demo
+from patterns.rag.graph_rag import (
+    build_entities_by_chunk_heuristic,
+    build_graph,
+    detect_communities,
+    global_search,
+    graph_adds_value,
+    local_search,
+    run_graph_rag_demo,
+    summarize_communities,
+)
 from patterns.rag.hybrid import hybrid_retrieve, reciprocal_rank_fusion
 from patterns.rag.late_interaction import build_late_interaction_index, late_interaction_retrieve
+from patterns.rag.order_preserve import order_preserve_assemble, run_order_preserve_demo, sweep_k
 from patterns.rag.pipeline import answer_question, run_abstain_demo, run_hybrid_rerank_demo, run_naive_rag_demo
 from patterns.rag.query_transform import parse_multi_queries, run_hyde_demo, run_multi_query_demo
+from patterns.rag.reasoning_rerank import reasoning_rerank, run_reasoning_rerank_demo
 from patterns.rag.rerank import parse_rerank_order, rerank_chunks, run_rerank_demo
 
 
@@ -536,3 +549,381 @@ def test_run_agentic_rag_demo_uses_prebuilt_dense_index_when_given() -> None:
     )
     result = run_agentic_rag_demo(provider, dense_index=dense_index, embedder=embedder)
     assert result.answer.citations == ["swapped#0"]
+
+
+# --- deep research --------------------------------------------------------
+
+
+def test_deep_research_decompose_then_answer() -> None:
+    embedder = HashEmbedder()
+    chunk_a = Chunk(id="doc-a#0", source_id="doc-a", text="rollback deploy release procedure", start=0, end=1)
+    chunk_b = Chunk(id="doc-b#0", source_id="doc-b", text="refund invoice billing window", start=0, end=1)
+    index = build_dense_index([chunk_a, chunk_b], embedder)
+    provider = MockProvider(
+        [
+            "What is the rollback procedure?\nWhat is the refund window?",
+            "The rollback procedure is described here [doc-a#0].",
+            "The refund window is described here [doc-b#0].",
+            "Report: rollback procedure [doc-a#0]; refund window [doc-b#0].",
+        ]
+    )
+    result = run_deep_research("a two-part question", index, embedder, provider, top_k=1, max_rounds=1)
+    assert [f.sub_question for f in result.notebook] == [
+        "What is the rollback procedure?",
+        "What is the refund window?",
+    ]
+    assert result.notebook[0].chunk_ids == ["doc-a#0"]
+    assert result.notebook[1].chunk_ids == ["doc-b#0"]
+
+
+def test_deep_research_gap_driven_follow_up_runs_a_second_round() -> None:
+    embedder = HashEmbedder()
+    chunk_a = Chunk(id="doc-a#0", source_id="doc-a", text="rollback deploy release procedure", start=0, end=1)
+    chunk_c = Chunk(id="doc-c#0", source_id="doc-c", text="postmortem deadline forty eight hours", start=0, end=1)
+    index = build_dense_index([chunk_a, chunk_c], embedder)
+    provider = MockProvider(
+        [
+            "What is the rollback procedure?",
+            "The rollback procedure is described here [doc-a#0].",
+            "What is the postmortem deadline?",  # coverage after round 1: one gap
+            "The postmortem deadline is described here [doc-c#0].",
+            "Report: rollback [doc-a#0]; postmortem deadline [doc-c#0].",
+        ]
+    )
+    result = run_deep_research("rollback and postmortem question", index, embedder, provider, top_k=1, max_rounds=2)
+    assert result.rounds_used == 2
+    assert [f.sub_question for f in result.notebook] == [
+        "What is the rollback procedure?",
+        "What is the postmortem deadline?",
+    ]
+    assert result.notebook[1].chunk_ids == ["doc-c#0"]
+
+
+def test_deep_research_stops_early_on_done_coverage() -> None:
+    embedder = HashEmbedder()
+    chunk_a = Chunk(id="doc-a#0", source_id="doc-a", text="rollback deploy release procedure", start=0, end=1)
+    index = build_dense_index([chunk_a], embedder)
+    provider = MockProvider(
+        [
+            "What is the rollback procedure?",
+            "The rollback procedure is described here [doc-a#0].",
+            "DONE",
+            "Report: rollback [doc-a#0].",
+        ]
+    )
+    # max_rounds=3 leaves room for more rounds; DONE coverage must stop the loop before
+    # a second retrieval round, or the script (with no 5th entry) would raise.
+    result = run_deep_research("rollback question", index, embedder, provider, top_k=1, max_rounds=3)
+    assert result.rounds_used == 1
+    assert len(result.notebook) == 1
+
+
+def test_deep_research_not_found_finding_is_dropped_and_not_citable() -> None:
+    embedder = HashEmbedder()
+    chunk_a = Chunk(id="doc-a#0", source_id="doc-a", text="rollback deploy release procedure", start=0, end=1)
+    chunk_b = Chunk(id="doc-b#0", source_id="doc-b", text="unrelated other topic", start=0, end=1)
+    index = build_dense_index([chunk_a, chunk_b], embedder)
+    provider = MockProvider(
+        [
+            "What is the rollback procedure?\nWhat is the refund window?",
+            "The rollback procedure is described here [doc-a#0].",
+            "NOT FOUND",
+            "Report: rollback [doc-a#0], also allegedly [doc-b#0].",
+        ]
+    )
+    result = run_deep_research("q", index, embedder, provider, top_k=1, max_rounds=1)
+    assert len(result.notebook) == 1
+    assert result.notebook[0].sub_question == "What is the rollback procedure?"
+    # doc-b#0 never entered the notebook (its sub-question was "not found"), so the
+    # synthesis's fabricated citation to it is filtered out, not trusted.
+    assert result.answer.citations == ["doc-a#0"]
+
+
+def test_deep_research_stops_at_round_budget_even_with_gaps_remaining() -> None:
+    embedder = HashEmbedder()
+    chunk_a = Chunk(id="doc-a#0", source_id="doc-a", text="rollback deploy release procedure", start=0, end=1)
+    chunk_b = Chunk(id="doc-b#0", source_id="doc-b", text="postmortem deadline forty eight hours", start=0, end=1)
+    index = build_dense_index([chunk_a, chunk_b], embedder)
+    provider = MockProvider(
+        [
+            "What is the rollback procedure?",
+            "The rollback procedure is described here [doc-a#0].",
+            "What is the postmortem deadline?",  # coverage after round 1: a gap
+            "The postmortem deadline is described here [doc-b#0].",
+            # round 2 == max_rounds: budget spent, coverage is never asked again
+            "Report so far: rollback [doc-a#0]; postmortem deadline [doc-b#0].",
+        ]
+    )
+    result = run_deep_research("q", index, embedder, provider, top_k=1, max_rounds=2)
+    assert result.rounds_used == 2
+    assert result.answer.abstained is False
+    assert len(result.notebook) == 2
+
+
+def test_run_deep_research_demo_completes_a_gap_driven_report() -> None:
+    result = run_deep_research_demo()
+    assert result.rounds_used == 2
+    assert set(result.answer.citations) == {
+        "incident-runbook#0",
+        "incident-runbook#1",
+        "oncall-rotation#0",
+        "incident-runbook#2",
+    }
+
+
+# --- graph RAG --------------------------------------------------------------
+
+
+def test_build_graph_is_deterministic_and_connects_co_occurring_entities() -> None:
+    chunk = Chunk(id="doc#0", source_id="doc", text="Aurora Cloud runs the SEV1 Incident Response process.", start=0, end=1)
+    entities_by_chunk = build_entities_by_chunk_heuristic([chunk])
+    first = build_graph([chunk], entities_by_chunk)
+    second = build_graph([chunk], entities_by_chunk)
+
+    assert first.entities == second.entities
+    first_edges = [(e.source, e.target, e.weight, e.chunk_ids) for e in first.edges]
+    second_edges = [(e.source, e.target, e.weight, e.chunk_ids) for e in second.edges]
+    assert first_edges == second_edges
+
+    edge = next(e for e in first.edges if {e.source, e.target} == {"Aurora Cloud", "SEV1 Incident Response"})
+    assert edge.chunk_ids == ["doc#0"]
+
+
+def test_detect_communities_groups_co_occurring_entities_together() -> None:
+    chunk_a = Chunk(id="doc-a#0", source_id="doc-a", text="PagerDuty escalates to the Engineering Manager.", start=0, end=1)
+    chunk_b = Chunk(
+        id="doc-b#0", source_id="doc-b", text="GDPR Deletion requests go through Data Retention review.", start=0, end=1
+    )
+    entities_by_chunk = build_entities_by_chunk_heuristic([chunk_a, chunk_b])
+    graph = build_graph([chunk_a, chunk_b], entities_by_chunk)
+    communities = detect_communities(graph)
+
+    assert len(communities) == 2
+    pagerduty_community = next(c for c in communities if "PagerDuty" in c.entities)
+    assert "Engineering Manager" in pagerduty_community.entities
+    gdpr_community = next(c for c in communities if "GDPR Deletion" in c.entities)
+    assert "Data Retention" in gdpr_community.entities
+
+
+def test_local_search_reaches_two_hop_chunk_flat_top1_retrieval_misses() -> None:
+    chunks = default_chunks()
+    embedder = HashEmbedder()
+    dense_index = build_dense_index(chunks, embedder)
+    entities_by_chunk = {
+        "incident-runbook#1": ["SEV1", "Rollback Command"],
+        "deploy-policy#1": ["SEV1", "Deployment Freeze"],
+    }
+    graph = build_graph(chunks, entities_by_chunk)
+    query = (
+        "If a SEV1 is caused by a bad deploy, what mitigation step is taken, and are deployment "
+        "freezes also in effect during the incident?"
+    )
+    provider = MockProvider(
+        [
+            "The rollback mitigation [incident-runbook#1] and the deployment freeze during an "
+            "active SEV1 [deploy-policy#1] are both documented."
+        ]
+    )
+
+    result = local_search(query, graph, provider, hops=1)
+    flat_top1 = [sc.chunk.id for sc in dense_retrieve(query, dense_index, embedder, top_k=1)]
+
+    assert "deploy-policy#1" in result.chunk_ids
+    assert "deploy-policy#1" not in flat_top1
+    assert graph_adds_value(result.chunk_ids, flat_top1) is True
+
+
+def test_global_search_answers_from_summaries_with_no_chunk_retrieval() -> None:
+    chunk_a = Chunk(id="doc-a#0", source_id="doc-a", text="alpha beta", start=0, end=1)
+    chunk_b = Chunk(id="doc-b#0", source_id="doc-b", text="gamma delta", start=0, end=1)
+    entities_by_chunk = {"doc-a#0": ["Alpha Topic", "Beta Topic"], "doc-b#0": ["Gamma Topic"]}
+    graph = build_graph([chunk_a, chunk_b], entities_by_chunk)
+    communities = detect_communities(graph)
+    summarize_communities(communities, graph.chunks_by_id, MockProvider(["summary one", "summary two"]))
+
+    provider = MockProvider(
+        [
+            "Alpha and beta are covered [community-0].",
+            "Gamma is covered [community-1].",
+            "Overall, the corpus covers alpha and beta [community-0] and gamma [community-1].",
+        ]
+    )
+    result = global_search("what are the themes?", communities, provider)
+
+    assert result.mode == "global"
+    assert result.chunk_ids == []
+    assert result.communities_touched == [0, 1]
+    assert set(result.answer.citations) == {"community-0", "community-1"}
+
+
+def test_local_search_reports_no_benefit_on_single_hop_factoid() -> None:
+    chunks = default_chunks()
+    embedder = HashEmbedder()
+    dense_index = build_dense_index(chunks, embedder)
+    entities_by_chunk = {"api-rate-limits#0": ["API Rate Limit"], "api-rate-limits#1": ["API Rate Limit"]}
+    graph = build_graph(chunks, entities_by_chunk)
+    query = "What is Aurora's default API rate limit per minute?"
+    provider = MockProvider(
+        ["The default limit is one hundred requests per minute per key [api-rate-limits#0]."]
+    )
+
+    result = local_search(query, graph, provider, hops=1)
+    flat = [sc.chunk.id for sc in dense_retrieve(query, dense_index, embedder, top_k=len(result.chunk_ids) or 1)]
+
+    assert graph_adds_value(result.chunk_ids, flat) is False
+
+
+def test_run_graph_rag_demo_shows_local_win_and_skeptic_no_benefit() -> None:
+    result = run_graph_rag_demo()
+    assert graph_adds_value(result.local_result.chunk_ids, result.local_flat_baseline) is True
+    assert graph_adds_value(result.skeptic_result.chunk_ids, result.skeptic_flat_baseline) is False
+    assert result.global_result.chunk_ids == []
+    assert len(result.communities) == 5
+
+
+# --- reasoning reranking ------------------------------------------------
+
+
+def test_reasoning_rerank_promotes_highest_graded_chunk_to_first() -> None:
+    planted = Chunk(id="planted", source_id="d", text="the directly relevant passage", start=0, end=1)
+    distractor_a = Chunk(id="distractor-a", source_id="d", text="tangential passage one", start=0, end=1)
+    distractor_b = Chunk(id="distractor-b", source_id="d", text="tangential passage two", start=0, end=1)
+    candidates = [ScoredChunk(distractor_a, 0.9), ScoredChunk(distractor_b, 0.8), ScoredChunk(planted, 0.1)]
+    provider = MockProvider(
+        [
+            {"content": "RELEVANCE: 1", "reasoning": "only tangentially related"},
+            {"content": "RELEVANCE: 1", "reasoning": "also only tangential"},
+            {"content": "RELEVANCE: 3", "reasoning": "directly answers the question"},
+        ]
+    )
+    reranked, judgments = reasoning_rerank("a question", candidates, provider, top_k=3)
+    assert reranked[0].chunk.id == "planted"
+    assert judgments[0].chunk_id == "planted" and judgments[0].grade == 3
+    assert judgments[1].chunk_id == "distractor-a" and judgments[1].grade == 1
+
+
+def test_reasoning_rerank_reasoning_channel_is_recorded_not_parsed_for_grade() -> None:
+    chunk = Chunk(id="c1", source_id="d", text="text", start=0, end=1)
+    completion = Completion(content="RELEVANCE: 2", reasoning="RELEVANCE: 3 (this reasoning text must not be parsed)")
+    provider = MockProvider([completion])
+
+    reranked, judgments = reasoning_rerank("q", [ScoredChunk(chunk, 0.5)], provider, top_k=1)
+
+    assert judgments[0].grade == 2  # parsed only from content, never from the reasoning channel
+    assert judgments[0].rationale == "RELEVANCE: 3 (this reasoning text must not be parsed)"
+    assert reranked[0].score == 2.0
+
+
+def test_reasoning_rerank_drops_all_zero_graded_candidates() -> None:
+    a = Chunk(id="a", source_id="d", text="x", start=0, end=1)
+    b = Chunk(id="b", source_id="d", text="y", start=0, end=1)
+    provider = MockProvider(["RELEVANCE: 0", "RELEVANCE: 0"])
+
+    reranked, judgments = reasoning_rerank("q", [ScoredChunk(a, 0.9), ScoredChunk(b, 0.5)], provider, top_k=3)
+
+    assert reranked == []
+    assert judgments == []
+
+
+def test_reasoning_rerank_breaks_grade_ties_by_retrieval_score() -> None:
+    higher = Chunk(id="higher", source_id="d", text="x", start=0, end=1)
+    lower = Chunk(id="lower", source_id="d", text="y", start=0, end=1)
+    candidates = [ScoredChunk(lower, 0.3), ScoredChunk(higher, 0.7)]
+    provider = MockProvider(["RELEVANCE: 2", "RELEVANCE: 2"])
+
+    reranked, _ = reasoning_rerank("q", candidates, provider, top_k=2)
+
+    assert [sc.chunk.id for sc in reranked] == ["higher", "lower"]
+
+
+def test_reasoning_rerank_is_deterministic_given_an_identical_script() -> None:
+    a = Chunk(id="a", source_id="d", text="x", start=0, end=1)
+    b = Chunk(id="b", source_id="d", text="y", start=0, end=1)
+    candidates = [ScoredChunk(a, 0.5), ScoredChunk(b, 0.4)]
+
+    def make_provider() -> MockProvider:
+        return MockProvider(
+            [
+                {"content": "RELEVANCE: 3", "reasoning": "rationale for a"},
+                {"content": "RELEVANCE: 1", "reasoning": "rationale for b"},
+            ]
+        )
+
+    first, first_judgments = reasoning_rerank("q", candidates, make_provider(), top_k=2)
+    second, second_judgments = reasoning_rerank("q", candidates, make_provider(), top_k=2)
+
+    assert [sc.chunk.id for sc in first] == [sc.chunk.id for sc in second]
+    assert [j.grade for j in first_judgments] == [j.grade for j in second_judgments]
+    assert [j.rationale for j in first_judgments] == [j.rationale for j in second_judgments]
+
+
+def test_run_reasoning_rerank_demo_promotes_buried_chunk_and_drops_noise() -> None:
+    query, before, after, judgments = run_reasoning_rerank_demo()
+    assert before[-1].chunk.id == "billing-faq#1"  # buried last of six by dense retrieval
+    assert after[0].chunk.id == "billing-faq#1"  # promoted to first by the reasoning grade
+    after_ids = {sc.chunk.id for sc in after}
+    assert "incident-runbook#0" not in after_ids  # graded 0, dropped rather than ranked last
+    assert "api-rate-limits#1" not in after_ids  # graded 0, dropped rather than ranked last
+
+
+# --- order-preserving assembly and the k sweep ---------------------------
+
+
+def test_order_preserve_assemble_orders_by_source_and_start_not_score() -> None:
+    early = Chunk(id="doc#0", source_id="doc", text="early passage text here", start=0, end=24)
+    late = Chunk(id="doc#1", source_id="doc", text="late passage text here", start=100, end=123)
+    scored = [ScoredChunk(late, 0.9), ScoredChunk(early, 0.3)]  # late scores higher
+
+    ordered = order_preserve_assemble(scored, token_budget=1000)
+
+    assert [c.id for c in ordered] == ["doc#0", "doc#1"]  # document order, not score order
+
+
+def test_order_preserve_assemble_dedups_and_respects_budget() -> None:
+    base = "the rollback command reverts the previous stable release quickly today"
+    c1 = Chunk(id="c1", source_id="d", text=base, start=0, end=1)
+    c2 = Chunk(id="c2", source_id="d", text=base + " now", start=10, end=11)  # near-dup of c1
+    c3 = Chunk(id="c3", source_id="d", text="delta epsilon zeta", start=20, end=21)
+
+    result = order_preserve_assemble([ScoredChunk(c1, 0.9), ScoredChunk(c2, 0.8), ScoredChunk(c3, 0.5)], token_budget=100)
+
+    assert [c.id for c in result] == ["c1", "c3"]  # c2 dropped as a near-duplicate of c1
+
+
+def test_sweep_k_reports_interior_sweet_spot_not_largest_k() -> None:
+    chunks = [Chunk(id=f"c{i}", source_id="d", text=f"word{i}", start=0, end=1) for i in range(4)]
+    candidates = [ScoredChunk(chunks[i], 1.0 - i * 0.1) for i in range(4)]
+    provider = MockProvider(
+        [
+            "one citation [c0].",
+            "two citations [c0] [c1].",
+            "three citations [c0] [c1] [c2].",
+            "one citation only [c0].",
+        ]
+    )
+
+    result = sweep_k("q", candidates, provider, ks=[1, 2, 3, 4])
+
+    assert result.sweet_spot_k == 3  # interior maximum, not the largest swept k
+    assert result.points[-1].proxy_score < result.points[2].proxy_score
+
+
+def test_sweep_k_hard_negative_lowers_proxy_at_a_matched_k() -> None:
+    a = Chunk(id="a", source_id="d", text="x", start=0, end=1)
+    b = Chunk(id="b", source_id="d", text="y", start=0, end=1)
+    noise = Chunk(id="noise", source_id="e", text="unrelated", start=0, end=1)
+    clean = [ScoredChunk(a, 0.9), ScoredChunk(b, 0.8)]
+    noisy = [ScoredChunk(a, 0.9), ScoredChunk(b, 0.8), ScoredChunk(noise, 0.5)]
+    provider = MockProvider(["both covered [a] [b].", "only one covered [a], the noise chunk distracted from b."])
+
+    clean_result = sweep_k("q", clean, provider, ks=[2])
+    noisy_result = sweep_k("q", noisy, provider, ks=[3])
+
+    assert noisy_result.points[0].proxy_score < clean_result.points[0].proxy_score
+
+
+def test_run_order_preserve_demo_shows_document_order_and_interior_peak() -> None:
+    query, score_ordered, order_preserved, sweep = run_order_preserve_demo()
+    assert [c.id for c in score_ordered] == ["incident-runbook#1", "incident-runbook#0"]
+    assert [c.id for c in order_preserved] == ["incident-runbook#0", "incident-runbook#1"]
+    assert sweep.sweet_spot_k == 3
