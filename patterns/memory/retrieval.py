@@ -7,6 +7,13 @@ formula: relevance + recency + importance). `hybrid_retrieve` adds a
 keyword channel alongside the vector one. `diversity_rerank` is a small
 MMR-style pass that avoids returning several near-duplicate memories in one
 result set.
+
+Recency here is ranking-only: `_recency_score` down-weights an old record's
+score, but nothing in this module deletes it, so the store this ranks over
+only ever grows and a stale or superseded fact keeps competing for the
+top-k forever. `forgetting.py` is where deletion becomes a first-class
+store operation (decay-to-eviction, TTL, capacity bound, and intent-aware
+delete); this module never calls it.
 """
 
 from __future__ import annotations

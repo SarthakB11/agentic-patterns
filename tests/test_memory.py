@@ -12,7 +12,26 @@ from agentic_patterns import HashEmbedder, Message, MockProvider, Tool, ToolRegi
 from patterns.memory.assembler import assemble_context
 from patterns.memory.episodic import EpisodicMemory
 from patterns.memory.file_memory import FileMemoryStore
+from patterns.memory.forgetting import (
+    enforce_capacity,
+    intent_aware_delete,
+    set_ttl,
+    strength,
+    sweep_decay,
+    sweep_ttl,
+    touch,
+)
+from patterns.memory.mem0_update import apply_candidate_fact, mem0_update
 from patterns.memory.memgpt import DEMO_ARCHIVE_KEY, DEMO_ARCHIVE_TEXT, MemGPTMemory, run_memgpt_demo
+from patterns.memory.memory_bench import (
+    ABSTAIN,
+    BenchCase,
+    BenchSession,
+    run_bench,
+    write_mem0,
+    write_naive_append,
+    write_overwrite,
+)
 from patterns.memory.memory_tools import build_memory_toolset
 from patterns.memory.procedural import ProceduralMemory
 from patterns.memory.retrieval import RetrievalConfig, retrieve
@@ -23,6 +42,7 @@ from patterns.memory.short_term import (
     drop_stale_tool_results,
     evict_to_budget,
 )
+from patterns.memory.sleep_time import run_sleep_time_pipeline
 from patterns.memory.vector_store import VectorStore
 from patterns.memory.write_policy import (
     BackgroundWriteQueue,
@@ -463,3 +483,284 @@ def test_file_memory_create_twice_errors() -> None:
     result = fs.create("notes.md", "v2")
     assert result.startswith("ERROR")
     assert fs.read("notes.md") == "v1"  # first write untouched
+
+
+# --- mem0-style extract-then-update: ADD / UPDATE / DELETE / NOOP -----------
+
+
+def test_mem0_update_add_on_empty_namespace() -> None:
+    embedder = HashEmbedder()
+    store = VectorStore()
+    provider = MockProvider(script=["language: Python", "ADD"])
+    ops = mem0_update(provider, store, embedder, "user:x", "I use Python.")
+    assert [(op.operation, op.record_id) for op in ops] == [("ADD", "mem-1")]
+    assert len(store.all("user:x")) == 1
+
+
+def test_mem0_update_update_on_similar_rephrasing_does_not_grow_store() -> None:
+    embedder = HashEmbedder()
+    store = VectorStore()
+    store.upsert("mem-1", "user:x", "language: Python", embedder.embed(["language: Python"])[0])
+    provider = MockProvider(script=["UPDATE mem-1: Python 3.11"])
+    op = apply_candidate_fact(provider, store, embedder, "user:x", "coding_language: Python 3.11")
+    assert op.operation == "UPDATE"
+    assert op.record_id == "mem-1"
+    assert len(store.all("user:x")) == 1
+    assert store.get("user:x", "mem-1").text == "Python 3.11"
+
+
+def test_mem0_update_delete_on_contradiction() -> None:
+    embedder = HashEmbedder()
+    store = VectorStore()
+    store.upsert("mem-1", "user:x", "plan: pro tier", embedder.embed(["plan: pro tier"])[0])
+    provider = MockProvider(script=["DELETE mem-1"])
+    op = apply_candidate_fact(provider, store, embedder, "user:x", "plan: canceled")
+    assert op.operation == "DELETE"
+    assert store.get("user:x", "mem-1") is None
+
+
+def test_mem0_update_noop_on_restatement_leaves_store_unchanged() -> None:
+    embedder = HashEmbedder()
+    store = VectorStore()
+    store.upsert("mem-1", "user:x", "plan: pro tier", embedder.embed(["plan: pro tier"])[0])
+    before = store.get("user:x", "mem-1").text
+    provider = MockProvider(script=["NOOP"])
+    op = apply_candidate_fact(provider, store, embedder, "user:x", "plan: pro tier")
+    assert op.operation == "NOOP"
+    assert op.record_id is None
+    assert store.get("user:x", "mem-1").text == before
+    assert len(store.all("user:x")) == 1
+
+
+def test_mem0_update_op_log_is_deterministic_across_runs() -> None:
+    embedder = HashEmbedder()
+    script = ["plan: pro tier", "ADD", "plan: free tier", "UPDATE mem-1: free tier"]
+
+    def run_once() -> list[tuple[str, str | None]]:
+        provider = MockProvider(script=list(script))
+        store = VectorStore()
+        ops = mem0_update(provider, store, embedder, "user:x", "I'm on pro.")
+        ops += mem0_update(provider, store, embedder, "user:x", "downgraded to free.")
+        return [(op.operation, op.record_id) for op in ops]
+
+    assert run_once() == run_once()
+
+
+# --- forgetting: decay, TTL, capacity bound, intent-aware deletion ----------
+
+
+def test_forgetting_decay_sweep_removes_unaccessed_keeps_reinforced() -> None:
+    embedder = HashEmbedder()
+    store = VectorStore()
+    store.upsert("neglected", "user:x", "a", embedder.embed(["a"])[0])
+    store.upsert("recalled", "user:x", "b", embedder.embed(["b"])[0])
+    touch(store.get("user:x", "recalled"), store.clock)
+    later = store.clock + 20
+    log = sweep_decay(store, "user:x", later, floor=0.05, decay_rate=0.25)
+    assert [e.record_id for e in log] == ["neglected"]
+    assert store.get("user:x", "neglected") is None
+    assert store.get("user:x", "recalled") is not None
+
+
+def test_forgetting_touch_reinforcement_raises_strength() -> None:
+    embedder = HashEmbedder()
+    store = VectorStore()
+    record = store.upsert("x", "user:x", "x", embedder.embed(["x"])[0])
+    check_at = store.clock + 10
+    strength_before = strength(record, check_at, decay_rate=0.25)
+    touch(record, store.clock)
+    strength_after = strength(record, check_at, decay_rate=0.25)
+    assert strength_after > strength_before
+
+
+def test_forgetting_ttl_deletes_expired_keeps_valid_regardless_of_strength() -> None:
+    embedder = HashEmbedder()
+    store = VectorStore()
+    store.upsert("expiring", "user:x", "e", embedder.embed(["e"])[0])
+    set_ttl(store.get("user:x", "expiring"), store.clock + 1)
+    store.upsert("filler", "user:x", "f", embedder.embed(["f"])[0])
+    store.upsert("valid", "user:x", "v", embedder.embed(["v"])[0])
+    set_ttl(store.get("user:x", "valid"), store.clock + 100)
+    log = sweep_ttl(store, "user:x", store.clock)
+    assert [e.record_id for e in log] == ["expiring"]
+    assert store.get("user:x", "expiring") is None
+    assert store.get("user:x", "valid") is not None
+
+
+def test_forgetting_capacity_bound_evicts_weakest_and_stops_at_cap() -> None:
+    embedder = HashEmbedder()
+    store = VectorStore()
+    for i in range(5):
+        store.upsert(f"r{i}", "user:x", f"r{i}", embedder.embed([f"r{i}"])[0])
+    log = enforce_capacity(store, "user:x", store.clock, max_size=3)
+    assert [e.record_id for e in log] == ["r0", "r1"]  # oldest, never-touched, weakest first
+    assert len(store.all("user:x")) == 3
+
+
+def test_forgetting_intent_aware_delete_removes_matched_keeps_unrelated() -> None:
+    embedder = HashEmbedder()
+    store = VectorStore()
+    store.upsert("old-job", "user:x", "User worked at Acme Corp.", embedder.embed(["Acme Corp job"])[0])
+    store.upsert("old-tz", "user:x", "Acme Corp timezone was EST.", embedder.embed(["Acme Corp timezone"])[0])
+    store.upsert("current-job", "user:x", "User now works at Nimbus.", embedder.embed(["Nimbus job"])[0])
+    provider = MockProvider(script=["old-job, old-tz"])
+    log = intent_aware_delete(provider, embedder, store, "user:x", "Forget my old employer, Acme Corp.")
+    assert {e.record_id for e in log} == {"old-job", "old-tz"}
+    assert store.get("user:x", "current-job") is not None
+
+
+# --- offline recall benchmark: LongMemEval-style abilities + abstention ----
+
+
+def test_bench_perfect_recall_scores_correct() -> None:
+    embedder = HashEmbedder()
+    case = BenchCase(
+        case_id="extraction-1",
+        sessions=[BenchSession(["favorite_food: ramen"])],
+        question="What is the user's favorite food?",
+        gold_answer="ramen",
+        ability="extraction",
+    )
+    provider = MockProvider(script=["ramen", "CORRECT"])
+    report = run_bench(provider, embedder, [case], write_fn=write_overwrite)
+    assert report.accuracy == 1.0
+    assert report.results[0].correct is True
+
+
+def test_bench_abstention_scores_correct_only_when_backend_declines() -> None:
+    embedder = HashEmbedder()
+    case = BenchCase(
+        case_id="abstention-1",
+        sessions=[BenchSession(["favorite_food: ramen"])],
+        question="What is the user's home address?",
+        gold_answer=ABSTAIN,
+        ability="abstention",
+    )
+    abstains = MockProvider(script=[ABSTAIN, "CORRECT"])
+    report_abstains = run_bench(abstains, embedder, [case], write_fn=write_overwrite)
+    assert report_abstains.results[0].correct is True
+
+    guesses = MockProvider(script=["123 Main St", "WRONG"])
+    report_guesses = run_bench(guesses, embedder, [case], write_fn=write_overwrite)
+    assert report_guesses.results[0].correct is False
+
+
+def test_bench_knowledge_update_overwrite_passes_naive_append_fails() -> None:
+    embedder = HashEmbedder()
+    case = BenchCase(
+        case_id="knowledge-update-1",
+        sessions=[BenchSession(["plan: free tier"]), BenchSession(["plan: pro tier"])],
+        question="What plan is the user on?",
+        gold_answer="pro tier",
+        ability="knowledge_update",
+    )
+    overwrite_provider = MockProvider(script=["pro tier", "CORRECT"])
+    overwrite_report = run_bench(overwrite_provider, embedder, [case], write_fn=write_overwrite)
+    assert overwrite_report.results[0].correct is True
+
+    naive_provider = MockProvider(script=["free tier", "WRONG"])
+    naive_report = run_bench(naive_provider, embedder, [case], write_fn=write_naive_append)
+    assert naive_report.results[0].correct is False
+
+
+def test_bench_per_ability_aggregation_keeps_abilities_separate() -> None:
+    embedder = HashEmbedder()
+    extraction_case = BenchCase(
+        case_id="extraction-1",
+        sessions=[BenchSession(["favorite_food: ramen"])],
+        question="What is the user's favorite food?",
+        gold_answer="ramen",
+        ability="extraction",
+    )
+    temporal_case = BenchCase(
+        case_id="temporal-1",
+        sessions=[BenchSession(["status: apply failed"]), BenchSession(["status: apply succeeded"])],
+        question="What is the current apply status?",
+        gold_answer="succeeded",
+        ability="temporal",
+    )
+    provider = MockProvider(script=["ramen", "CORRECT", "failed (stale)", "WRONG"])
+    report = run_bench(provider, embedder, [extraction_case, temporal_case], write_fn=write_overwrite)
+    assert report.accuracy_by_ability["extraction"] == 1.0
+    assert report.accuracy_by_ability["temporal"] == 0.0
+
+
+def test_bench_mem0_backend_outscores_overwrite_on_knowledge_update() -> None:
+    embedder = HashEmbedder()
+    case = BenchCase(
+        case_id="cross-key-1",
+        sessions=[
+            BenchSession(["plan: pro tier, 1M requests/month"]),
+            BenchSession(["subscription: free tier, 10k requests/month"]),
+        ],
+        question="What plan is the user currently on?",
+        gold_answer="free tier, 10k requests/month",
+        ability="knowledge_update",
+    )
+    overwrite_provider = MockProvider(script=["pro tier, 1M requests/month", "WRONG"])
+    overwrite_report = run_bench(overwrite_provider, embedder, [case], write_fn=write_overwrite)
+
+    mem0_provider = MockProvider(
+        script=["ADD", "UPDATE mem-1: plan: free tier, 10k requests/month", "free tier, 10k requests/month", "CORRECT"]
+    )
+    mem0_report = run_bench(mem0_provider, embedder, [case], write_fn=write_mem0)
+
+    assert overwrite_report.accuracy_by_ability["knowledge_update"] == 0.0
+    assert mem0_report.accuracy_by_ability["knowledge_update"] == 1.0
+    # the reader/judge call shape is identical between the two runs; only
+    # the write path differs, so the structural cause is the record count
+    # each backend actually left behind, not a scripting difference
+    assert len(overwrite_report.results) == len(mem0_report.results) == 1
+
+
+# --- sleep-time compute: offline pre-derivation amortized across queries ---
+
+
+def test_sleep_time_parity_between_paths_on_shared_context() -> None:
+    context = "Order total is $50, shipped, arrives Friday."
+    query = "What is the total?"
+    provider = MockProvider(script=["learned: total $50", "derive: $50", "The total is $50.", "The total is $50."])
+    report = run_sleep_time_pipeline(provider, context, [query], {query: True})
+    assert report.path_a_answers == report.path_b_answers
+
+
+def test_sleep_time_amortization_gap_grows_with_query_count() -> None:
+    context = "Order total is $50, shipped, arrives Friday."
+
+    def make_report(n: int):
+        queries = [f"query {i}" for i in range(n)]
+        covered = {q: True for q in queries}
+        script = ["sleep pass"] + ["derive", "answer"] * n + ["answer"] * n
+        provider = MockProvider(script=script)
+        return run_sleep_time_pipeline(provider, context, queries, covered)
+
+    small_gap = make_report(2).path_a_online_calls - make_report(2).path_b_online_calls
+    big_gap = make_report(4).path_a_online_calls - make_report(4).path_b_online_calls
+    assert big_gap > small_gap > 0
+
+
+def test_sleep_time_single_query_has_no_online_call_advantage() -> None:
+    context = "Order total is $50, shipped, arrives Friday."
+    query = "What is the total?"
+    script = ["sleep pass", "derive", "answer", "answer"]
+    provider = MockProvider(script=script)
+    report = run_sleep_time_pipeline(provider, context, [query], {query: True})
+    assert report.path_a_online_calls == report.path_b_total_calls
+
+
+def test_sleep_time_low_predictability_falls_back_and_still_answers() -> None:
+    context = "Order total is $50, shipped, arrives Friday."
+    query = "Can this be returned after 90 days?"
+    provider = MockProvider(
+        script=[
+            "sleep pass",
+            "derive return policy",  # path A derive (always runs)
+            "path A answer",  # path A answer (always runs)
+            "derive return policy again",  # path B fallback derive
+            "final on-the-spot answer",  # path B fallback answer
+        ]
+    )
+    report = run_sleep_time_pipeline(provider, context, [query], {query: False})
+    assert report.fallback_queries == [query]
+    assert report.path_b_online_calls == 2  # derive + answer, the path A shape, for the fallback
+    assert report.path_b_answers == ["final on-the-spot answer"]

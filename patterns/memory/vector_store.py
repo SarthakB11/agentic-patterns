@@ -12,6 +12,12 @@ use the subject as the id.
 The store keeps a logical clock (a counter incremented on every write)
 instead of wall-clock time, so recency scoring in `retrieval.py` stays
 deterministic across runs and machines.
+
+`delete` exists on this class, but nothing in `retrieval.py` ever calls it:
+recency there is a ranking weight, not an eviction trigger, so a namespace
+only ever grows unless a caller deletes explicitly. `forgetting.py` is the
+module that actually removes records, by decay, TTL, capacity bound, or
+model-judged intent.
 """
 
 from __future__ import annotations

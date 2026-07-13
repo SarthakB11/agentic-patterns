@@ -8,7 +8,10 @@ long-term memory types (semantic, episodic, procedural), retrieval scoring
 strategies, a hot-path/background write policy with fact extraction and
 conflict resolution, a context assembler that merges every source under a
 token budget, a MemGPT-style paged memory variant, a memory-as-tools mode,
-and a file-directory memory backend.
+a file-directory memory backend, a Mem0-style similarity-gated update
+decision (ADD/UPDATE/DELETE/NOOP), decay/TTL/capacity/intent-aware
+forgetting, an offline LongMemEval-style recall benchmark, and sleep-time
+compute's offline pre-derivation amortized across queries.
 
 See `patterns/memory/README.md` for the full write-up and
 `patterns/memory/main.py` for a runnable demo of every variant.

@@ -12,9 +12,15 @@ Three concerns, kept distinct:
   extraction to a later `drain` call, keeping the turn itself fast at the
   cost of staleness until drained.
 - **Conflicts**: `SemanticMemory.write_fact` already resolves same-subject
-  conflicts by clean overwrite (see `semantic.py`). `consolidate` covers
-  the harder case, sleep-time consolidation, where a model must reconcile
-  several candidate values in prose rather than replace one key.
+  conflicts by clean overwrite (see `semantic.py`, and its docstring for
+  the narrower limit that overwrite does not cover). `consolidate` covers
+  the harder case, offline contradiction reconciliation, where a model
+  must reconcile several candidate values already recorded under one
+  known subject in prose rather than replace one key. This is a one-off
+  reconcile, not sleep-time compute: it derives nothing that a later,
+  unseen query reuses. `sleep_time.py` is where that amortization claim
+  actually gets exercised, and `mem0_update.py` is where similarity-gated
+  conflict resolution across different subject keys lives.
 
 This module also holds the pattern's headline end-to-end demo: a fact told
 to the agent in one session is recalled in a second, unrelated session.
@@ -108,12 +114,17 @@ class BackgroundWriteQueue:
 
 
 def consolidate(provider: Provider, memory: SemanticMemory, subject: str, candidates: list[str]) -> str:
-    """Sleep-time consolidation: reconcile several candidate values seen for
-    one subject into a single current value, and overwrite the record.
+    """Offline contradiction reconciliation: reconcile several candidate
+    values already known to share one subject into a single current value,
+    and overwrite the record.
 
     This is the offline analogue of `write_fact`'s in-line overwrite, used
     when a conflict needs a model to weigh candidates in prose (e.g. one
-    stale, one current) rather than a clean same-subject replacement.
+    stale, one current) rather than a clean same-subject replacement. It is
+    a single inline reconcile, not sleep-time compute: it does not
+    pre-derive anything a later, unseen query reuses, and it still requires
+    the caller to already know the candidates share one subject, which
+    `mem0_update.py`'s similarity-gated decision does not.
     """
     completion = provider.complete(
         [Message.user(f"Candidates for '{subject}': {'; '.join(candidates)}. Which is current?")],

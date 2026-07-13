@@ -29,6 +29,14 @@ no network call and no API key:
 11. Memory-as-tools: the model decides when to store or retrieve, instead
     of a fixed pre-retrieval step.
 12. File-directory memory: a peer of the vector store, no embedding index.
+13. Mem0-style update decision: ADD/UPDATE/DELETE/NOOP resolves a
+    same-claim, different-key conflict that plain overwrite misses.
+14. Forgetting: decay, reinforcement, TTL, capacity bound, and
+    intent-aware deletion, so the store no longer only ever grows.
+15. Offline recall benchmark: a LongMemEval-style ability taxonomy with
+    abstention scoring, comparing the overwrite and Mem0-style backends.
+16. Sleep-time compute: one offline pre-derivation amortized across
+    several later queries, with the crossover made visible in call counts.
 
 Run it from the repository root:
 
@@ -48,12 +56,16 @@ from patterns.memory import (
     assembler,
     episodic,
     file_memory,
+    forgetting,
+    mem0_update,
     memgpt,
+    memory_bench,
     memory_tools,
     procedural,
     retrieval,
     semantic,
     short_term,
+    sleep_time,
     vector_store,
     write_policy,
 )
@@ -156,7 +168,46 @@ def main() -> None:
     print(f"  files: {fm['files']}")
     print()
 
-    print("All twelve sections completed without exhausting their scripts.")
+    print("=== 13. Mem0-style update decision (ADD/UPDATE/DELETE/NOOP) ===")
+    mem0 = mem0_update.run_mem0_update_demo()
+    print(f"  operations: {mem0['operations']}")
+    print(f"  record count after each turn: {mem0['record_count_after_each_turn']}")
+    print(f"  (a same-key overwrite would have missed the plan/subscription rename)")
+    print()
+
+    print("=== 14. Forgetting: decay, TTL, capacity bound, intent-aware delete ===")
+    forget = forgetting.run_forgetting_demo()
+    print(f"  decay swept: {forget['decay_deleted']} (reinforced sibling survived: "
+          f"{forget['active_note_survived_decay']})")
+    print(f"  TTL swept: {forget['ttl_deleted']}")
+    print(f"  capacity bound evicted: {forget['capacity_deleted']} -> "
+          f"{forget['capacity_final_size']} records left (reinforced note still survives: "
+          f"{forget['active_note_survived_capacity']})")
+    print(f"  intent-aware delete removed: {forget['intent_deleted']} "
+          f"(unrelated note survived: {forget['current_job_note_survived_intent_delete']})")
+    print()
+
+    print("=== 15. Offline recall benchmark (LongMemEval-style abilities) ===")
+    bench = memory_bench.run_memory_bench_demo()
+    print(f"  overwrite backend accuracy: {bench['overwrite_accuracy']:.2f} "
+          f"by ability: {bench['overwrite_accuracy_by_ability']}")
+    print(f"  overwrite knowledge-update answer: {bench['overwrite_knowledge_update_answer']!r} "
+          f"(correct: {bench['overwrite_knowledge_update_correct']})")
+    print(f"  mem0 knowledge-update answer: {bench['mem0_knowledge_update_answer']!r} "
+          f"(correct: {bench['mem0_knowledge_update_correct']})")
+    print()
+
+    print("=== 16. Sleep-time compute: offline pre-derivation, amortized ===")
+    sleep = sleep_time.run_sleep_time_demo()
+    print(f"  learned context: {sleep['learned_context']}")
+    print(f"  path A (test-time only) online calls: {sleep['path_a_online_calls']}")
+    print(f"  path B (sleep-time) online calls: {sleep['path_b_online_calls']} "
+          f"(+1 offline sleep pass = {sleep['path_b_total_calls']} total)")
+    print(f"  fallback queries (not anticipated by the sleep pass): {sleep['fallback_queries']}")
+    print(f"  at n=1, no online-call advantage: {sleep['single_query_no_advantage']}")
+    print()
+
+    print("All sixteen sections completed without exhausting their scripts.")
 
 
 if __name__ == "__main__":

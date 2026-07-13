@@ -7,6 +7,16 @@ overwrites the record in place instead of accumulating a second, possibly
 contradictory, one. That overwrite rule is the write policy for semantic
 memory; `write_policy.py` covers the two other write concerns, when to
 write (hot path vs background) and what to write (extraction).
+
+This conflict resolution is narrower than it looks: `write_fact` only
+catches a conflict when the new fact reuses the exact subject key. A fact
+stored as `plan: pro tier` and a later `subscription: free tier` are the
+same underlying claim under different keys, so both persist and both
+surface in retrieval, exactly the accumulation-and-contradiction failure
+mode this pattern's own design brief warns against. `mem0_update.py`'s
+similarity-gated ADD/UPDATE/DELETE/NOOP decision is the fix for that case:
+it compares a new candidate fact against its nearest existing memories by
+embedding, not by exact key.
 """
 
 from __future__ import annotations
@@ -39,6 +49,13 @@ class SemanticMemory:
             True if this write replaced an existing value for `subject`
             (a conflict was resolved by overwrite), False if `subject` was
             new.
+
+        Note:
+            Conflict detection is exact-key only: a fact under a different
+            subject that says the same thing in different words is not
+            caught here and will accumulate as a second record. See
+            `mem0_update.apply_candidate_fact` for similarity-gated
+            resolution across differently-keyed facts.
         """
         existing = self.store.get(self.namespace, subject)
         text = f"{subject}: {value}"

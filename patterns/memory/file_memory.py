@@ -3,10 +3,22 @@
 Mirrors Anthropic's memory tool (a client-side `/memory` directory the
 model reads, writes, and deletes across sessions) and Letta's filesystem
 memory. There is no embedding index and no similarity search here:
-retrieval is an exact path read. Letta agents on gpt-4o-mini reached 74% on
-the LoCoMo benchmark writing conversation files alone, with no embedding
-index, so filesystem memory is a genuine alternative to the vector store
-for some workloads, not a lesser fallback.
+retrieval is an exact path read. Letta reported agents on gpt-4o-mini
+reaching 74% on the LoCoMo benchmark writing conversation files alone, with
+no embedding index, so filesystem memory is a genuine alternative to the
+vector store for some workloads, not a lesser fallback.
+
+Treat that 74% as one configuration's result, not a settled ranking.
+MemDelta (arXiv:2606.29914) varies one component at a time on
+LongMemEval-S and shows LoCoMo-style single-number comparisons are
+routinely confounded by which embedding model or base model was paired
+with the memory method, with rankings that reverse when only the embedding
+changes. LongMemEval (arXiv:2410.10813) is the stronger reference when this
+pattern needs an authoritative benchmark citation: it is designed around
+holding components fixed, exactly what a confound-sensitive single number
+cannot promise. `memory_bench.py` follows LongMemEval's ability taxonomy
+for the same reason, with the reader model held fixed by construction under
+`MockProvider`.
 """
 
 from __future__ import annotations
