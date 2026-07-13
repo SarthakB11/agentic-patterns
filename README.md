@@ -35,24 +35,26 @@ To run any example against a real API instead of the mock, set environment varia
 
 ## The twelve patterns
 
-| Pattern                                          | What it does                                                                                           | Reach for it when                                                                                             |
-| ------------------------------------------------ | ------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------- |
-| [ReAct](patterns/react/)                         | Interleaves reasoning and tool calls in one loop: thought, action, observation, repeat                 | The number of steps is unknown upfront and each action depends on the last observation                        |
-| [Planning](patterns/planning/)                   | Produces an explicit plan first, then executes it: sequential, DAG-parallel, replanning, ReWOO         | The task structure is predictable, steps can run in parallel, or a plan needs review before anything executes |
-| [Reflection](patterns/reflection/)               | Generates, critiques, and refines with explicit stop conditions and best-so-far tracking               | Output quality matters more than latency and a checkable signal (tests, a rubric) exists                      |
-| [Tool use](patterns/tool_use/)                   | Function calling from a single shot to parallel calls, forced choice, self-repair, and code-as-action  | The model must act on the world, not just describe it                                                         |
-| [Memory](patterns/memory/)                       | Short-term windows and summarization up to vector stores, write policies, and MemGPT-style paging      | State must survive past the context window, across turns or across sessions                                   |
-| [RAG](patterns/rag/)                             | Retrieval-augmented generation: naive dense, hybrid BM25 + dense with RRF, reranking, grading, abstain | Answers must be grounded in a corpus the model was not trained on, with citations                             |
-| [Multi-agent](patterns/multi_agent/)             | Supervisor and workers, handoffs, debate, maker-checker, hierarchies over shared state                 | Work genuinely splits into roles with separate contexts, and coordination overhead pays for itself            |
-| [Evaluation](patterns/evaluation/)               | Exact checks, LLM-as-judge with bias controls, juries, trajectory scoring, regression gates            | You change a prompt or model and need to know nothing broke                                                   |
-| [MCP](patterns/mcp/)                             | A Model Context Protocol client and server built from scratch over JSON-RPC 2.0 and stdio              | A tool integration should be reusable across hosts and run behind a process boundary                          |
-| [Guardrails](patterns/guardrails/)               | Fail-closed validation at every trust boundary: input, retrieval, output, and pre-tool                 | Anything untrusted flows in or consequential actions flow out                                                 |
-| [Human-in-the-loop](patterns/human_in_the_loop/) | Approval gates with four decisions, audit logs, durable interrupt and resume, risk tiers               | An action is irreversible or expensive enough that a person must stay in the chain                            |
-| [Routing](patterns/routing/)                     | Sends each request to the right model, mode, or handler: semantic, classifier, cascades, fallbacks     | One model or one configuration should not serve every request                                                 |
+| Pattern                                          | What it does                                                                                                                                                                             | Reach for it when                                                                                             |
+| ------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| [ReAct](patterns/react/)                         | The reason-and-act loop from text grammar to native tool calling, then tree search over trajectories, compaction, self-consistency, a verify-before-finish gate, and derailment recovery | The number of steps is unknown upfront and each action depends on the last observation                        |
+| [Planning](patterns/planning/)                   | Explicit plans: sequential, DAG-parallel, replanning, ReWOO, then localized repair, sound-verifier loops, hierarchical expansion, plan selection, and premortem simulation               | The task structure is predictable, steps can run in parallel, or a plan needs review before anything executes |
+| [Reflection](patterns/reflection/)               | Generate, critique, refine with explicit stops and best-so-far tracking, then multi-critic panels, adaptive stopping, and critique in the reasoning-model era                            | Output quality matters more than latency and a checkable signal (tests, a rubric) exists                      |
+| [Tool use](patterns/tool_use/)                   | Function calling from a single shot through parallel calls and self-repair to code-as-action, constrained decoding, failure taxonomies, and tool search over flooded catalogs            | The model must act on the world, not just describe it                                                         |
+| [Memory](patterns/memory/)                       | Short-term windows and paging to vector stores, then typed write decisions, sleep-time consolidation, principled forgetting, and a five-ability benchmark harness                        | State must survive past the context window, across turns or across sessions                                   |
+| [RAG](patterns/rag/)                             | Naive dense to hybrid RRF and reranking, grading with abstain, then graph retrieval, deep-research loops, rationale-based reranking, and position effects                                | Answers must be grounded in a corpus the model was not trained on, with citations                             |
+| [Multi-agent](patterns/multi_agent/)             | Supervisor and workers, handoffs, debate, then dual-ledger orchestration with stall detection, failure attribution, agent cards, and the economics of adding an agent                    | Work genuinely splits into roles with separate contexts, and coordination overhead pays for itself            |
+| [Evaluation](patterns/evaluation/)               | Exact checks and LLM-as-judge with bias controls, then a three-axis judge validation protocol, process rewards, preference leakage, selective judging, and regression gates              | You change a prompt or model and need to know nothing broke                                                   |
+| [MCP](patterns/mcp/)                             | A client and server from scratch over JSON-RPC 2.0: the stdio handshake and the stateless variant, plus integrity defenses, async tasks, elicitation, and discovery                      | A tool integration should be reusable across hosts and run behind a process boundary                          |
+| [Guardrails](patterns/guardrails/)               | Fail-closed validation at every trust boundary, up to dual-LLM quarantine, capability-based flow control, a policy engine, and an injection attack suite                                 | Anything untrusted flows in or consequential actions flow out                                                 |
+| [Human-in-the-loop](patterns/human_in_the_loop/) | Approval gates with audit and resume, risk tiers, then oversight as a finite fatiguing resource, learned gates that fail closed, and mandated-oversight mapping                          | An action is irreversible or expensive enough that a person must stay in the chain                            |
+| [Routing](patterns/routing/)                     | Semantic, classifier, and cascade routing, then router evaluation against oracle baselines, verifier-gated escalation, threshold sweeps, and paraphrase robustness                       | One model or one configuration should not serve every request                                                 |
+
+Every folder follows the same arc: the canonical mechanism first, the production form next, then the modules implementing specific 2025-2026 results, each citing the paper or system it comes from. The folder READMEs carry the full variant lists, control-flow diagrams, honest skipped-with-reasons notes, and sources.
 
 ## A reading order
 
-If you are new to agents, read the folders in this order. Each group builds on the one before it.
+If you are new to agents, read the folders in this order. Each group builds on the one before it, and the same order works inside each folder: read the early modules before the research-current ones.
 
 ```mermaid
 flowchart LR
@@ -77,12 +79,15 @@ Start with tool use, since every other pattern assumes a model that can call fun
 
 ```
 agentic_patterns/core/   shared harness: Provider abstraction (mock, OpenAI-compatible,
-                         Anthropic), ToolRegistry, deterministic hash embedder, env config
+                         Anthropic, with a reasoning channel), ToolRegistry,
+                         deterministic hash embedder, env config
 patterns/<name>/         one folder per pattern: runnable main.py, one module per
                          sub-variant, a README with a flowchart and sources
 tests/                   one test file per pattern, plus core tests and a smoke test
                          that runs every entrypoint offline
 ```
+
+Current size: 206 pattern modules and a 754-test suite, all offline and deterministic.
 
 Design choices worth knowing about:
 
