@@ -1,4 +1,4 @@
-"""Programmatic tool calling (code-as-action).
+"""Programmatic tool calling, linear form.
 
 Instead of one round trip per tool call, the model emits a short program: a
 list of steps, each naming a tool, its arguments, and where to store the
@@ -7,14 +7,18 @@ runtime executes the whole program locally against the real tools and sends
 only the final summary back to the model, so intermediate observations never
 re-enter the context window.
 
-This is the brief's "code-as-action" variant, and Anthropic's Programmatic
-Tool Calling and "Code execution with MCP" (Nov 2025) turned it into a
-first-party API primitive: the model writes real code in a sandbox, and
-Anthropic reports collapsing a 150K-token workflow to about 2K tokens (a
-98.7 percent reduction) by keeping intermediate tool results out of context.
-The interpreter below is a teaching-scale stand-in for that sandbox: a fixed
-step format instead of arbitrary code, resolved and executed against
-`ToolRegistry` with no code execution of its own.
+This is programmatic tool calling in its linear form, not the code-as-action
+variant CodeAct (Wang et al., ICML 2024, arXiv:2402.01030) describes: the
+step list has no loops and no branches, so a task like "look up ten orders
+and return only the delayed ones" needs ten steps here, one per order, and
+cannot express the filtering itself. That is a real limit, not a simplifying
+detail: it is exactly what keeps this module from showing the context
+collapse Anthropic's "Code execution with MCP" (Nov 2025) reports, a claimed
+150K-to-2K-token reduction on a real workflow. `code_action.py` is the
+Turing-complete form, a real `exec`-backed sandbox where the model writes
+arbitrary Python with control flow; that module is where the collapse shows
+up, since one action there can process many tool results and return only
+the aggregate, matching what Anthropic's number depends on.
 """
 
 from __future__ import annotations

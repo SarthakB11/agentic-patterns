@@ -11,9 +11,11 @@ problem before generation even finishes: OpenAI's `strict: true` and
 Anthropic's structured-outputs beta compile a tool's JSON Schema into a
 grammar that masks invalid tokens during decoding, so a wrong type or a
 missing required field mostly cannot be produced in the first place.
-`validate_arguments` and the repair turn below still matter for what
-constrained decoding cannot catch: a structurally valid call with a wrong
-value, such as a well-formed but unsupported currency code, which is a
+`constrained_decoding.py` demonstrates that masking mechanism directly,
+offline, against the same kind of structural error this module repairs
+after the fact. `validate_arguments` and the repair turn below still matter
+for what constrained decoding cannot catch: a structurally valid call with a
+wrong value, such as a well-formed but unsupported currency code, which is a
 semantic error caught by the tool's own logic rather than its schema.
 """
 

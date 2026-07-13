@@ -18,8 +18,11 @@ from agentic_patterns import (
 )
 
 from patterns.tool_use import (
+    code_action,
     code_execution,
     concepts,
+    constrained_decoding,
+    error_recovery,
     forced_choice,
     guardrails,
     parallel,
@@ -423,3 +426,264 @@ def test_failure_injection_errors_accumulate_but_loop_recovers() -> None:
     assert outcomes == ["tool_error", "ok", "tool_error", "ok"]
     assert result.stop_reason == "stop"
     assert result.final_answer
+
+
+# --- constrained decoding: schema-grammar token masking ---------------------
+
+
+def test_constrained_decoding_masks_illegal_number_token() -> None:
+    """A letter-like top preference for a number field is blocked; the digit is emitted and parses numeric."""
+    grammar = constrained_decoding.compile_grammar(constrained_decoding.CONVERT_SCHEMA)
+    arguments, steps = constrained_decoding.generate_masked(grammar, [["hundred", "100"], ["EUR"]])
+    assert steps[0].emitted == "100"
+    assert arguments["amount"] == 100
+    assert isinstance(arguments["amount"], int)
+
+
+def test_constrained_decoding_masks_illegal_enum_token() -> None:
+    """A non-enum top preference for currency is blocked; the in-enum value is emitted."""
+    grammar = constrained_decoding.compile_grammar(constrained_decoding.CONVERT_SCHEMA)
+    arguments, steps = constrained_decoding.generate_masked(grammar, [["100"], ["JPY", "EUR"]])
+    assert steps[1].emitted == "EUR"
+    assert arguments["currency"] == "EUR"
+
+
+def test_constrained_decoding_blocked_count_matches_injected() -> None:
+    """Exactly one illegal token was injected per field; blocked count must match, not over- or under-count."""
+    _, steps = constrained_decoding.demo_constrained_decoding()
+    total_blocked = sum(len(step.blocked) for step in steps)
+    assert total_blocked == 2
+    assert steps[0].blocked == ["hundred"]
+    assert steps[1].blocked == ["JPY"]
+
+
+def test_constrained_decoding_precheck_computed_at_compile_time() -> None:
+    """The enum field's legal-token set is built once at compile time, unaffected by how many steps run."""
+    grammar = constrained_decoding.compile_grammar(constrained_decoding.CONVERT_SCHEMA)
+    assert grammar.precheck_count == 1  # one enum field (currency); amount is a number, no finite set to precompute
+    constrained_decoding.generate_masked(grammar, [["100"], ["EUR"]])
+    constrained_decoding.generate_masked(grammar, [["50"], ["GBP"]])
+    assert grammar.precheck_count == 1  # unchanged after two full generation runs against the same compiled grammar
+
+
+def test_constrained_decoding_parity_with_validate_arguments() -> None:
+    """The masked call passes validate_arguments with zero repairs; the unmasked call is rejected."""
+    masked_arguments, _ = constrained_decoding.demo_constrained_decoding()
+    grammar = constrained_decoding.compile_grammar(constrained_decoding.CONVERT_SCHEMA)
+    unmasked_arguments = constrained_decoding.generate_unconstrained(grammar, [["hundred", "100"], ["JPY", "EUR"]])
+
+    assert validate_arguments(constrained_decoding.CONVERT_SCHEMA, masked_arguments) == []
+    errors = validate_arguments(constrained_decoding.CONVERT_SCHEMA, unmasked_arguments)
+    assert any("expected type number" in e for e in errors)
+
+
+# --- code-as-action: real control flow over tool results --------------------
+
+
+def test_code_action_loop_filters_list_in_one_round_trip() -> None:
+    """Code filters five orders to the two delayed ones; exactly two model round trips ran (code, then answer)."""
+    result = code_action.demo_loop_filter()
+    assert result.observation == "['ORD-2002: delayed', 'ORD-2004: delayed']"
+    assert result.round_trips == 2
+
+
+def test_code_action_context_collapse_one_observation_many_tool_calls() -> None:
+    """Message history holds exactly one tool observation though five tool calls executed inside the sandbox."""
+    result = code_action.demo_loop_filter()
+    tool_messages = [m for m in result.history if m.role == "tool"]
+    assert len(tool_messages) == 1
+    assert result.tool_calls_made == 5
+
+
+def test_code_action_sandbox_boundary_blocks_unavailable_name() -> None:
+    """Code referencing a name outside the sandbox (open) raises inside exec and becomes an error observation."""
+    observation, tool_calls_made = code_action.demo_sandbox_boundary()
+    assert observation.startswith("ERROR:")
+    assert "open" in observation
+    assert tool_calls_made == 0  # the boundary was hit before any tool wrapper ran
+
+
+def test_code_action_branch_runs_taken_branch_only() -> None:
+    """A delayed order takes the escalate branch; mark_fulfilled must never run for it."""
+    result = code_action.demo_branch()
+    assert "escalated" in result.observation
+    assert "fulfilled" not in result.observation
+
+
+def test_code_action_parity_with_step_interpreter() -> None:
+    """The same two-step order-then-email task yields the same final result as code_execution.py's step list."""
+    registry = build_registry()
+    code = (
+        "order = lookup_order(order_id='ORD-1002')\n"
+        "parts = dict(p.split('=', 1) for p in order.split())\n"
+        "result = get_customer_email(customer_id=parts['customer_id'])\n"
+    )
+    provider = get_provider(
+        script=[
+            scripted_tool_call("run_python", {"code": code}),
+            "Order ORD-1002 is processing; the customer's email on file is sam@example.com.",
+        ]
+    )
+    messages = [Message.user("Check order ORD-1002's status and find the customer's email, in one pass.")]
+
+    result = code_action._run_one_action(registry, provider, messages)
+
+    assert result.observation == "sam@example.com"
+    step_results = code_execution.run_program(
+        build_registry(),
+        [
+            {"call": "lookup_order", "args": {"order_id": "ORD-1002"}, "save_as": "order"},
+            {"call": "get_customer_email", "args": {"customer_id": "$order.customer_id"}, "save_as": "email"},
+        ],
+    )
+    assert result.observation == step_results["email"]
+
+
+# --- class-routed tool-failure recovery -------------------------------------
+
+
+def test_error_recovery_transient_retry_succeeds_within_budget() -> None:
+    """Two transient failures then a success: two retries recorded, all within one model round trip."""
+    result = error_recovery.demo_transient_retry()
+    attempt = result.rounds[0].attempts[0]
+    assert attempt.classification == "transient"
+    assert attempt.succeeded is True
+    assert "retried x2" in attempt.strategy
+    assert len(result.rounds[0].attempts) == 1
+    assert result.stop_reason == "stop"
+
+
+def test_error_recovery_permanent_failure_uses_substitute() -> None:
+    """A permanently failing tool falls back to its registered substitute, and the substitute's result is used."""
+    registry = error_recovery.build_recovery_registry({"get_weather": ["permanent"]})
+    call = ToolCall("call_1", "get_weather", {"city": "Atlantis"})
+
+    attempt = error_recovery.recover_call(
+        registry, call, substitutes={"get_weather": "get_weather_backup"}, transient_budget={}
+    )
+
+    assert attempt.classification == "permanent"
+    assert attempt.succeeded is True
+    assert "get_weather_backup" in attempt.strategy
+    assert "backup source" in attempt.observation
+
+
+def test_error_recovery_budget_stop_names_transient_class() -> None:
+    """A tool that always fails transiently is stopped at the retry budget, with a terminal observation naming the class."""
+    result = error_recovery.demo_budget_stop()
+    attempt = result.rounds[0].attempts[0]
+    assert attempt.classification == "transient"
+    assert attempt.succeeded is False
+    assert "budget exhausted after 2 retries" in attempt.strategy
+    assert "transient" in attempt.observation
+
+
+def test_error_recovery_implicit_failure_injects_verify_not_success() -> None:
+    """An empty result is never accepted as success; a verify observation is injected instead."""
+    registry = error_recovery.build_recovery_registry({"get_customer_email": ["empty"]})
+    call = ToolCall("call_1", "get_customer_email", {"customer_id": "CUST-42"})
+
+    attempt = error_recovery.recover_call(registry, call, substitutes={}, transient_budget={})
+
+    assert attempt.classification == "implicit"
+    assert attempt.succeeded is False
+    assert attempt.observation.startswith("VERIFY:")
+
+
+def test_error_recovery_all_four_classes_routed_distinctly() -> None:
+    """One script exercises all four failure classes; each must reach its own distinct strategy."""
+    result = error_recovery.demo_all_classes()
+    classifications = [round_record.attempts[0].classification for round_record in result.rounds]
+    assert classifications == ["malformed_args", "transient", "permanent", "implicit"]
+    strategies = [round_record.attempts[0].strategy for round_record in result.rounds]
+    assert len(set(strategies)) == 4  # every class ran a strategy distinct from every other class
+
+
+def test_error_recovery_transient_budget_shared_across_calls_not_reset_per_call() -> None:
+    """Regression test for the anti-futile-loop guard: the retry budget is per-tool across the whole run.
+
+    A budget reset per call (instead of accumulated in `transient_budget`)
+    would let a permanently-transient tool retry forever across many model
+    round trips, defeating ToolMaze's anti-futile-loop finding. Two
+    separate calls to the same always-failing tool must share one budget.
+    """
+    registry = error_recovery.build_recovery_registry(
+        {"get_weather": ["transient", "transient", "transient", "transient"]}
+    )
+    transient_budget: dict[str, int] = {}
+    call = ToolCall("call_1", "get_weather", {"city": "Tokyo"})
+
+    first = error_recovery.recover_call(
+        registry, call, substitutes={}, transient_budget=transient_budget, max_transient_retries=2
+    )
+    second = error_recovery.recover_call(
+        registry, call, substitutes={}, transient_budget=transient_budget, max_transient_retries=2
+    )
+
+    assert first.succeeded is False
+    assert second.succeeded is False
+    assert transient_budget["get_weather"] == 2  # exhausted by the first call; the second gets zero further attempts
+
+
+# --- retrieval-based tool selection at flooded catalog scale ----------------
+
+
+def test_tool_search_flood_collapse_picks_wrong_tool() -> None:
+    """Offering the whole flooded 16-tool catalog with no retrieval collapses selection to a distractor."""
+    registry = tool_search.build_flooded_registry(distractor_count=6)
+    embedder = HashEmbedder()
+    query = "convert 50 GBP to JPY, what's the exchange rate"
+    ranked = tool_search.search_tools(query, registry.specs(), embedder, top_k=1)
+    assert ranked[0]["name"] != "convert_currency"
+    assert ranked[0]["name"] == "exchange_rate_convert"
+
+
+def test_tool_search_retrieval_fix_picks_correct_tool_fewer_tokens() -> None:
+    """Top-3 retrieval against the flooded catalog offers and ranks convert_currency first, at far fewer tokens."""
+    registry = tool_search.build_flooded_registry(distractor_count=6)
+    embedder = HashEmbedder()
+    full_specs = registry.specs()
+    query = "please help me convert an amount of money from one currency to another"
+
+    selected = tool_search.search_tools(query, full_specs, embedder, top_k=3)
+
+    assert selected[0]["name"] == "convert_currency"
+    assert tool_search.estimate_tokens(selected) < tool_search.estimate_tokens(full_specs)
+
+
+def test_tool_search_recall_miss_then_widen_recovers() -> None:
+    """A one-shot top-3 retrieval misses convert_currency; widening to top-8 recovers it."""
+    registry = tool_search.build_flooded_registry(distractor_count=6)
+    embedder = HashEmbedder()
+    query = "convert 50 GBP to JPY, what's the exchange rate"
+    specs = registry.specs()
+
+    narrow = tool_search.search_tools(query, specs, embedder, top_k=3)
+    widened = tool_search.search_tools(query, specs, embedder, top_k=8)
+
+    assert "convert_currency" not in [s["name"] for s in narrow]
+    assert "convert_currency" in [s["name"] for s in widened]
+
+
+def test_tool_search_token_accounting_retrieved_below_full() -> None:
+    """The retrieved offer's token estimate is well below the full flooded catalog's, by more than half."""
+    registry = tool_search.build_flooded_registry(distractor_count=6)
+    embedder = HashEmbedder()
+    full_specs = registry.specs()
+    selected = tool_search.search_tools("convert 50 GBP to JPY", full_specs, embedder, top_k=3)
+
+    full_tokens = tool_search.estimate_tokens(full_specs)
+    retrieved_tokens = tool_search.estimate_tokens(selected)
+    assert retrieved_tokens < full_tokens / 2
+
+
+def test_tool_search_determinism_same_query_same_ranking() -> None:
+    """Running the same query against the same flooded catalog twice yields identical rankings and picks."""
+    registry = tool_search.build_flooded_registry(distractor_count=6)
+    embedder = HashEmbedder()
+    query = "convert 50 GBP to JPY, what's the exchange rate"
+    specs = registry.specs()
+
+    first = [s["name"] for s in tool_search.search_tools(query, specs, embedder, top_k=5)]
+    second = [s["name"] for s in tool_search.search_tools(query, specs, embedder, top_k=5)]
+    assert first == second

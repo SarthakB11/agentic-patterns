@@ -14,6 +14,19 @@ each one from taking the whole run down:
   calls become a terminal observation instead of another chance.
 - The model never stops calling tools. `max_iterations` bounds how many
   model round trips the loop will make before it gives up.
+
+These four guardrails share one shape: every failure becomes the same
+undifferentiated "ERROR: ..." observation, and the one retry budget applies
+uniformly regardless of what actually went wrong. That is not enough by
+itself: "When Tools Fail" / ToolMaze (Zhu et al., arXiv:2606.05806) finds
+agents get trapped in futile retry loops precisely because nothing
+distinguishes a transient failure worth retrying from a permanent one that
+never will succeed, and shows agents also suffer systemic over-trust in
+corrupted or silently empty results, a failure shape a bare "ERROR:" string
+does not even represent. `error_recovery.py` is the intended upgrade: it
+classifies a failure into transient, permanent, malformed-argument, or
+implicit (empty-result) before deciding what to do next, and routes each
+class to its own strategy instead of one shared retry cap.
 """
 
 from __future__ import annotations

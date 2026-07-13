@@ -8,7 +8,7 @@ can call more tools or produce a final answer. The model never executes
 code itself; it only proposes calls, and the runtime executes them inside a
 controlled boundary.
 
-This demo runs eleven sub-variants end to end, entirely offline against
+This demo runs fourteen sub-variants end to end, entirely offline against
 `MockProvider` with scripted, coherent conversations, no network call and no
 API key:
 
@@ -23,10 +23,19 @@ API key:
    iteration cap, none of which crash the loop.
 9. A write action gated behind confirmation, unlocked by a simulated
    elicitation step.
-10. Programmatic tool calling (code-as-action): a multi-step plan run
-    locally in one pass instead of one round trip per step.
-11. Retrieval-based tool selection (tool search): the top few of ten tools
-    offered to the model instead of the whole catalog.
+10. Programmatic tool calling, linear form: a multi-step plan run locally
+    in one pass instead of one round trip per step.
+11. Retrieval-based tool selection at flooded catalog scale: selection
+    collapse, retrieval restoring the pick and cutting tokens, and a
+    one-shot recall miss recovered by widening k.
+12. Constrained decoding: a schema-grammar token mask blocks illegal
+    tokens at generation time instead of repairing a malformed call after
+    the fact.
+13. Class-routed tool-failure recovery: transient, permanent,
+    malformed-argument, and implicit (empty-result) failures, each routed
+    to its own strategy instead of one shared retry budget.
+14. Code-as-action: a real, Turing-complete `run_python` action with loops
+    and branches, filtering many tool results into one observation.
 
 It also prints conceptual notes on the two taxonomy entries with no
 runnable demo: learned tool use (Toolformer) and neuro-symbolic routing
@@ -47,8 +56,11 @@ from __future__ import annotations
 import inspect
 
 from patterns.tool_use import (
+    code_action,
     code_execution,
     concepts,
+    constrained_decoding,
+    error_recovery,
     forced_choice,
     guardrails,
     parallel,
@@ -96,10 +108,15 @@ def main() -> None:
     write_action.demo_write_action_accepted()
     write_action.demo_write_action_declined()
     code_execution.demo_code_execution()
+    tool_search.demo_flood_collapse()
     tool_search.demo_tool_search()
+    tool_search.demo_recall_miss_then_widen()
     concepts.print_concept_notes()
+    constrained_decoding.demo_constrained_decoding()
+    error_recovery.demo_all_classes()
+    code_action.demo_loop_filter()
 
-    print("All eleven sub-variants completed without exhausting their scripts.")
+    print("All fourteen sub-variants completed without exhausting their scripts.")
 
 
 if __name__ == "__main__":

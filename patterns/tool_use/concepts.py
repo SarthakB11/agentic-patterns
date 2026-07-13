@@ -54,8 +54,8 @@ This repo's loop.py is closer to the flat-catalog side of that spectrum by
 design, matching the shared core's single-Provider, single-ToolRegistry
 contract; a MRKL-style router would sit a layer above it, choosing which
 provider or which registry a query goes to before `run_tool_loop` ever
-runs, which is a multi-agent routing concern rather than a tool-use loop
-concern.
+runs. Model and route selection is `patterns/routing/` territory, not a
+tool-use loop concern.
 """
 
 PROMOTED_TO_RUNNABLE = """\
@@ -69,12 +69,18 @@ pattern treats them as runnable modules instead of notes.
 """
 
 
+def _first_paragraph(note: str) -> str:
+    """Return a note constant's title line plus its first sentence, for a compact transcript excerpt."""
+    lines = [line for line in note.strip().splitlines() if line.strip()]
+    return f"{lines[0]}\n  {lines[1].split('. ')[0]}."
+
+
 def print_concept_notes() -> None:
-    """Print the conceptual, non-runnable notes for the remaining taxonomy entries."""
-    print("=== 11. Conceptual notes: not runnable offline ===")
-    print(LEARNED_TOOL_USE)
-    print(MRKL_ROUTING)
-    print(PROMOTED_TO_RUNNABLE)
+    """Print a short excerpt of each conceptual, non-runnable note; see this module's constants for the full text."""
+    print("=== 11. Conceptual notes: not runnable offline (excerpted; full text in concepts.py) ===")
+    print(_first_paragraph(LEARNED_TOOL_USE))
+    print(_first_paragraph(MRKL_ROUTING))
+    print(_first_paragraph(PROMOTED_TO_RUNNABLE))
 
 
 if __name__ == "__main__":
