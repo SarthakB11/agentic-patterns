@@ -12,17 +12,32 @@ an evaluator scores it, and the two alternate until the evaluator is
 satisfied or a budget runs out. That is the same loop implemented here
 under the name reflection.
 
-Stop conditions, checked in this order each round: (1) empty critique
-guard, stop and keep the draft unrevised if the critic returns nothing
-usable; (2) approval, either an explicit approved flag or a score at or
-above a threshold; (3) iteration cap, `max_iterations` rounds with no
-approval; (4) no-change convergence, a refine call that returns the draft
-unchanged, which doubles as an over-reflection guard since added rounds can
-regress a reasoning model's output rather than plateau it
-(arXiv:2604.06066); (5) blank refinement guard, stop and keep the last good
-draft if a refine call returns nothing. Across rounds the loop tracks the
-best-scoring draft seen, not simply the most recent one, since a
-refinement can regress.
+Stop conditions, checked in this order each round: (0) optional revision
+gate, evaluated once before the first critique, stop immediately and keep
+the draft unrevised if the gate reports the draft plausibly needs no
+revision at all; (1) empty critique guard, stop and keep the draft
+unrevised if the critic returns nothing usable; (2) approval, either an
+explicit approved flag or a score at or above a threshold; (3) optional
+diminishing-returns stop, stop when the score gain across rounds falls
+below an epsilon for a patience window, even below threshold; (4) iteration
+cap, `max_iterations` rounds with no approval; (5) no-change convergence, a
+refine call that returns the draft unchanged; (6) blank refinement guard,
+stop and keep the last good draft if a refine call returns nothing. Across
+rounds the loop tracks the best-scoring draft seen, not simply the most
+recent one, since a refinement can regress.
+
+The no-change guard (5) only catches a refinement that comes back
+byte-for-byte identical to the prior draft. Real over-reflection more often
+produces different but no-better text round after round, a degradation
+documented for reasoning models specifically: models re-checking and
+self-overturning already-correct answers (survey coverage, arXiv:2505.00551)
+and measured overthinking as rounds accumulate (survey, arXiv:2508.02120).
+Two things in this file catch that case where the no-change guard cannot:
+best-so-far tracking, which recovers the highest-scoring draft even when a
+later round regresses, and the optional diminishing-returns stop (3) above,
+which stops before wasting a plateaued round at all. See
+`patterns/reflection/adaptive_stop.py` for the gate and diminishing-returns
+mechanics.
 """
 
 from __future__ import annotations
@@ -116,9 +131,10 @@ class ReflectionResult:
             Usually equal to `best_draft`, but can differ when the last
             round regressed and best-so-far tracking kept the earlier draft.
         iterations: One `ReflectionIteration` per critique round that ran.
-        stop_reason: Why the loop stopped. One of "empty_critique",
-            "approved", "score_threshold", "no_change", "blank_refinement",
-            or "max_iterations".
+        stop_reason: Why the loop stopped. One of "gated_no_revision",
+            "empty_critique", "approved", "score_threshold",
+            "diminishing_returns", "no_change", "blank_refinement", or
+            "max_iterations".
     """
 
     initial_draft: str
@@ -136,6 +152,9 @@ def run_reflection_loop(
     *,
     max_iterations: int = 3,
     score_threshold: float | None = None,
+    gate: Callable[[str], bool] | None = None,
+    diminishing_epsilon: float | None = None,
+    diminishing_patience: int = 1,
 ) -> ReflectionResult:
     """Run the generate, critique, refine loop to a stop condition.
 
@@ -148,17 +167,44 @@ def run_reflection_loop(
             stopping unconditionally.
         score_threshold: If set, a critique with `score >= score_threshold`
             stops the loop even without an explicit approval.
+        gate: Optional cheap pre-check run once on the initial draft, before
+            the first critique. Returns True if the draft plausibly needs
+            revision. When it returns False, the loop stops immediately with
+            `stop_reason="gated_no_revision"` and never calls `critique` or
+            `refine`. None (the default) always proceeds to the normal loop,
+            matching every variant module that does not pass this argument.
+        diminishing_epsilon: If set, track the score delta between
+            consecutive rounds; once the delta stays below this epsilon for
+            `diminishing_patience` consecutive rounds, stop with
+            `stop_reason="diminishing_returns"` and return the best-so-far
+            draft, even if the score is still below `score_threshold`. None
+            (the default) disables this stop.
+        diminishing_patience: Number of consecutive plateaued rounds
+            required before the diminishing-returns stop fires. Ignored when
+            `diminishing_epsilon` is None.
 
     Returns:
         A `ReflectionResult` with the best draft found, the full transcript,
         and why the loop stopped.
     """
     initial = generate()
+    if gate is not None and not gate(initial):
+        return ReflectionResult(
+            initial_draft=initial,
+            best_draft=initial,
+            best_score=None,
+            final_draft=initial,
+            iterations=[],
+            stop_reason="gated_no_revision",
+        )
+
     current = initial
     best_draft = current
     best_score: float | None = None
     iterations: list[ReflectionIteration] = []
     stop_reason = "max_iterations"
+    prev_score: float | None = None
+    plateau_rounds = 0
 
     for i in range(1, max_iterations + 1):
         crit = critique(current)
@@ -181,6 +227,19 @@ def run_reflection_loop(
             iterations.append(ReflectionIteration(i, current, crit, f"stop: {reason}"))
             stop_reason = reason
             break
+
+        if diminishing_epsilon is not None and crit.score is not None:
+            if prev_score is not None and (crit.score - prev_score) < diminishing_epsilon:
+                plateau_rounds += 1
+            else:
+                plateau_rounds = 0
+            prev_score = crit.score
+            if plateau_rounds >= diminishing_patience:
+                iterations.append(
+                    ReflectionIteration(i, current, crit, "stop: diminishing returns, gain below epsilon")
+                )
+                stop_reason = "diminishing_returns"
+                break
 
         if i == max_iterations:
             iterations.append(ReflectionIteration(i, current, crit, "stop: max_iterations reached"))

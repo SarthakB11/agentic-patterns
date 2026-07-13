@@ -11,6 +11,14 @@ Framed as verifier-gated action: the checker's pass or fail result is not
 only the stop condition, it is also what authorizes the terminal action
 (here, "cleared to merge"). A draft only reaches the gated action once it
 actually passes, never on the model's say-so alone.
+
+Scope note: this teaches tool-grounded stopping with a fixed, pre-written
+checker, not CRITIC's full contribution. CRITIC's actual novelty is that
+the model itself proposes which check or tool call verifies its claim (for
+example, proposing a search query to verify a fact), which generalizes past
+code to tasks where no test suite can be pre-authored. That
+critic-proposes-the-check step is a candidate extension of this module, not
+built here to avoid duplicating `tool_use`'s function-calling mechanics.
 """
 
 from __future__ import annotations

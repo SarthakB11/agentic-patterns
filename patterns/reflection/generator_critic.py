@@ -8,12 +8,19 @@ generator never saw.
 
 This module also demonstrates external framing: the critic is shown the
 draft as "a submission from another author" rather than "your previous
-answer." Models have a measured self-correction blind spot: they miss
-errors in their own prior output that they catch in the same text when it
-is presented as someone else's (the 2025 "self-correction blind spot"
-result; also see "Cross-Context Review," arXiv:2603.12123, on separating
-drafting and reviewing sessions). Generator/critic separation plus external
-framing is the practical answer to that finding.
+answer." Models have a measured self-correction blind spot: Tsui's
+Self-Correction Bench (arXiv:2507.02778) reports a 64.5% average blind-spot
+rate across 14 non-reasoning models, missing an injected error in their own
+output that they catch when the same error is shown as another author's
+text. Cross-Context Review (arXiv:2603.12123) confirms the fix direction, a
+fresh review session beats same-session self-review, and adds a caution:
+reviewing twice in the same session did not beat reviewing once, so extra
+in-context rounds are not free improvement. Generator/critic separation
+plus external framing is the practical answer to the blind spot. Worth
+noting as a cheaper alternative: the same Self-Correction Bench paper finds
+that simply appending the word "Wait" to a model's own output cuts the
+blind spot by 89.3%, a one-token activation instead of a second provider
+and a role split.
 """
 
 from __future__ import annotations

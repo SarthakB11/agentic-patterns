@@ -9,11 +9,25 @@ from __future__ import annotations
 
 import pytest
 
-from agentic_patterns import MockProvider
+from agentic_patterns import Completion, MockProvider
 
-from patterns.reflection import generator_critic, reflexion, rubric, self_refine, tool_grounded
+from patterns.reflection import (
+    adaptive_stop,
+    generator_critic,
+    multi_critic,
+    reasoning_critic,
+    reflexion,
+    rubric,
+    sampled_verdict,
+    self_refine,
+    tool_grounded,
+)
+from patterns.reflection.adaptive_stop import make_gate
 from patterns.reflection.loop import Critique, parse_critique, run_reflection_loop
+from patterns.reflection.multi_critic import CriticLens, make_multi_critic
 from patterns.reflection.prompting import make_critique, make_generate, make_refine
+from patterns.reflection.reasoning_critic import answers_agree, run_single_pass
+from patterns.reflection.sampled_verdict import make_sampled_critic
 
 
 # --- parse_critique edge cases ---------------------------------------------
@@ -314,6 +328,232 @@ def test_reflexion_lesson_text_appears_in_retry_prompt() -> None:
     retry_prompt = provider.calls[1]["messages"][0].content
     assert "42 cupcakes" in retry_prompt
     assert "Lessons from earlier attempts" in retry_prompt
+
+
+# --- multi_critic: parallel specialist critics with an aggregation policy --
+
+
+def _lens(name: str, script: list[str], *, weight: float = 1.0) -> CriticLens:
+    return CriticLens(name, MockProvider(script), system=f"You review the {name} dimension.", weight=weight)
+
+
+def test_multi_critic_veto_refines_on_any_rejection() -> None:
+    lenses = [
+        _lens("correctness", ["APPROVED: yes\nSCORE: 9\ngood"]),
+        _lens("style", ["APPROVED: yes\nSCORE: 8\ngood"]),
+        _lens("safety", ["SCORE: 3\nunverified claim"]),
+    ]
+    critique = make_multi_critic(lenses, "task", policy="veto")
+    result = critique("draft")
+    assert result.approved is False
+
+
+def test_multi_critic_veto_score_is_minimum_present() -> None:
+    lenses = [
+        _lens("correctness", ["APPROVED: yes\nSCORE: 9\ngood"]),
+        _lens("style", ["APPROVED: yes\nSCORE: 8\ngood"]),
+        _lens("safety", ["SCORE: 3\nunverified claim"]),
+    ]
+    critique = make_multi_critic(lenses, "task", policy="veto")
+    result = critique("draft")
+    assert result.score == 3.0
+
+
+def test_multi_critic_labels_each_lens_in_refine_prompt() -> None:
+    generator_provider = MockProvider(["vague draft", "specific revised draft"])
+    lens_providers = {
+        "correctness": MockProvider(["SCORE: 9\naccurate", "APPROVED: yes\nSCORE: 9\naccurate"]),
+        "style": MockProvider(["SCORE: 8\nterse", "APPROVED: yes\nSCORE: 9\nterse"]),
+        "safety": MockProvider(["SCORE: 3\nunverified claim", "APPROVED: yes\nSCORE: 9\nsafe"]),
+    }
+    result = multi_critic.run_multi_critic_demo(generator_provider, lens_providers)
+    assert result.stop_reason == "approved"
+    refine_prompt = generator_provider.calls[1]["messages"][0].content
+    assert "[correctness]" in refine_prompt
+    assert "[style]" in refine_prompt
+    assert "[safety]" in refine_prompt
+    assert "unverified claim" in refine_prompt
+
+
+def test_multi_critic_all_approve_stops_before_cap() -> None:
+    result = multi_critic.run_multi_critic_demo()
+    assert result.stop_reason == "approved"
+    assert len(result.iterations) == 2
+
+
+def test_multi_critic_weighted_flip_drags_aggregate_below_threshold() -> None:
+    result = multi_critic.run_weighted_flip_demo()
+    first_round = result.iterations[0].critique
+    assert first_round.approved is False
+    assert first_round.score == pytest.approx(5.2)
+
+
+# --- sampled_verdict: self-consistent judging to denoise one critic --------
+
+
+def _base_critique(scripted: list[str]):
+    provider = MockProvider(scripted)
+    return make_critique(provider, "task", system="you judge drafts")
+
+
+def test_sampled_verdict_outlier_does_not_sink_median() -> None:
+    base = _base_critique(["SCORE: 8\nfine", "SCORE: 8\nfine", "SCORE: 2\nharsh outlier"])
+    critique = make_sampled_critic(base, n=3)
+    result = critique("draft")
+    assert result.score == 8.0
+
+
+def test_sampled_verdict_majority_approve_is_approved() -> None:
+    base = _base_critique(
+        ["APPROVED: yes\nSCORE: 9\ngood", "APPROVED: yes\nSCORE: 9\ngood", "SCORE: 4\nnot ready"]
+    )
+    critique = make_sampled_critic(base, n=3)
+    result = critique("draft")
+    assert result.approved is True
+
+
+def test_sampled_verdict_split_verdict_stays_unapproved() -> None:
+    base = _base_critique(["SCORE: 4\nweak", "SCORE: 6\nmid", "SCORE: 8\nstrong"])
+    critique = make_sampled_critic(base, n=3)
+    result = critique("draft")
+    assert result.score == 6.0
+    assert result.approved is False
+
+
+def test_sampled_verdict_comment_is_nearest_median_sample() -> None:
+    base = _base_critique(["SCORE: 4\nlow comment", "SCORE: 6\nmiddle comment", "SCORE: 9\nhigh comment"])
+    critique = make_sampled_critic(base, n=3)
+    result = critique("draft")
+    assert "middle comment" in result.comments
+    assert "low comment" not in result.comments
+    assert "high comment" not in result.comments
+
+
+def test_sampled_verdict_makes_exactly_n_calls_per_round() -> None:
+    critic_provider = MockProvider(
+        [
+            "SCORE: 8\nfine",
+            "SCORE: 8\nfine",
+            "SCORE: 2\nharsh",
+            "APPROVED: yes\nSCORE: 9\ngood",
+            "APPROVED: yes\nSCORE: 9\ngood",
+            "SCORE: 4\nnot ready",
+        ]
+    )
+    result, sample_log = sampled_verdict.run_sampled_verdict_demo(critic_provider=critic_provider, n=3)
+    assert len(critic_provider.calls) == 3 * len(result.iterations)
+    assert sample_log == [[8.0, 8.0, 2.0], [9.0, 9.0, 4.0]]
+
+
+# --- adaptive_stop: revision gate plus diminishing-returns stop ------------
+
+
+def test_gate_skip_makes_zero_critique_calls() -> None:
+    generator_provider = MockProvider(["already good draft"])
+    gate_provider = MockProvider(["OK"])
+    result = adaptive_stop.run_gate_skip_demo(generator_provider, gate_provider)
+    assert result.stop_reason == "gated_no_revision"
+    assert len(result.iterations) == 0
+    assert result.final_draft == result.initial_draft == "already good draft"
+    # only the single generate() call touched the generator provider; the
+    # gate short-circuited before any critique or refine call was made
+    assert len(generator_provider.calls) == 1
+
+
+def test_gate_pass_through_runs_normal_rounds() -> None:
+    result = adaptive_stop.run_gate_pass_through_demo()
+    assert result.stop_reason == "approved"
+    assert len(result.iterations) == 2
+
+
+def test_diminishing_returns_stops_before_the_cap() -> None:
+    result = adaptive_stop.run_diminishing_returns_demo()
+    assert result.stop_reason == "diminishing_returns"
+    assert len(result.iterations) == 3
+
+
+def test_diminishing_returns_distinct_from_no_change_guard() -> None:
+    drafts = iter(["d1", "d2 (different wording)", "d3 (different again)"])
+    scores = iter(["SCORE: 5\n", "SCORE: 7\n", "SCORE: 7.2\n"])
+
+    def generate() -> str:
+        return next(drafts)
+
+    def critique(_draft: str) -> Critique:
+        return parse_critique(next(scores))
+
+    def refine(_draft: str, _crit: Critique) -> str:
+        return next(drafts)
+
+    result = run_reflection_loop(
+        generate, critique, refine, max_iterations=5, diminishing_epsilon=0.5, diminishing_patience=1
+    )
+    assert result.stop_reason == "diminishing_returns"
+    assert result.stop_reason != "no_change"
+
+
+def test_diminishing_returns_threshold_still_wins() -> None:
+    drafts = iter(["d1", "d2"])
+    scores = iter(["SCORE: 7.6\n", "SCORE: 8.0\n"])
+
+    def generate() -> str:
+        return next(drafts)
+
+    def critique(_draft: str) -> Critique:
+        return parse_critique(next(scores))
+
+    def refine(_draft: str, _crit: Critique) -> str:
+        return next(drafts)
+
+    result = run_reflection_loop(
+        generate,
+        critique,
+        refine,
+        max_iterations=5,
+        score_threshold=8.0,
+        diminishing_epsilon=0.5,
+        diminishing_patience=1,
+    )
+    assert result.stop_reason == "score_threshold"
+
+
+def test_make_gate_parses_ok_and_revise() -> None:
+    ok_gate = make_gate(MockProvider(["OK"]), "task")
+    revise_gate = make_gate(MockProvider(["REVISE"]), "task")
+    assert ok_gate("some draft") is False
+    assert revise_gate("some draft") is True
+
+
+# --- reasoning_critic: native reasoning self-critique vs the explicit loop --
+
+
+def test_single_pass_returns_content_and_captures_reasoning() -> None:
+    provider = MockProvider(
+        [Completion(content="Answer: 126", reasoning="First I tried 108, then rechecked and got 126.")]
+    )
+    completion = run_single_pass(provider, "what is 14 times 9?")
+    assert completion.content == "Answer: 126"
+    assert "rechecked" in completion.reasoning
+    assert len(provider.calls) == 1
+
+
+def test_reasoning_benchmark_call_economy() -> None:
+    benchmark = reasoning_critic.run_benchmark()
+    assert benchmark.single_calls == 1
+    assert benchmark.loop_calls >= 3
+
+
+def test_single_pass_sends_no_separate_critique_scaffold() -> None:
+    provider = MockProvider([Completion(content="Answer: 126", reasoning="checked twice")])
+    run_single_pass(provider, "what is 14 times 9?")
+    system_prompt = provider.calls[0]["system"]
+    assert "critique" not in system_prompt.lower()
+    assert len(provider.calls) == 1
+
+
+def test_reasoning_benchmark_parity_on_normalized_answer() -> None:
+    benchmark = reasoning_critic.run_benchmark()
+    assert answers_agree(benchmark) is True
 
 
 if __name__ == "__main__":

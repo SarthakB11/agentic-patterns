@@ -7,12 +7,17 @@ to say a bare "approved". This makes the stop condition testable: it is a
 number comparison, not a judgment call about wording.
 
 This demo also shows why best-so-far tracking matters. The scripted score
-sequence rises, peaks, and then drops: round two over-corrects and buries
-the main point under extra caveats, a documented failure mode for added
-reflection rounds (arXiv:2604.06066, "structure snowballing"). The loop
-runs to the iteration cap without ever crossing the threshold, and the
-result returned is the round-two draft, the highest scored one, not the
-regressed round-three draft that happened to run last.
+sequence rises, peaks, and then drops: round three over-corrects and buries
+the main point under extra hedging language, the kind of round-count
+over-reflection reported for reasoning models re-checking and
+self-overturning already-correct output (survey arXiv:2505.00551) and
+catalogued as measured overthinking degradation (survey arXiv:2508.02120).
+This is not "structure snowballing" (arXiv:2604.06066): that finding is
+specifically about constrained decoding forcing a structured output format,
+not about hedging that appears after extra rounds. The loop runs to the
+iteration cap without ever crossing the threshold, and the result returned
+is the round-two draft, the highest scored one, not the regressed
+round-three draft that happened to run last.
 """
 
 from __future__ import annotations

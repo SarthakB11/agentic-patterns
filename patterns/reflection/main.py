@@ -6,7 +6,7 @@ drafts, a critic names what is wrong, and a refiner rewrites, repeating
 until the output clears a bar or a budget runs out. Current framework docs
 (LangGraph, OpenAI Agents SDK) call the same loop evaluator-optimizer.
 
-This demo runs five sub-variants end to end, entirely offline against
+This demo runs nine sub-variants end to end, entirely offline against
 `MockProvider` with scripted, coherent conversations, no network call and
 no API key:
 
@@ -21,6 +21,17 @@ no API key:
    loop and authorizes a terminal action.
 5. Memory-augmented (Reflexion-style) reflection: a failed attempt writes a
    verbal lesson to memory that a later attempt reads.
+6. Multi-critic aggregation: three specialist lenses run in parallel and
+   are combined by a veto policy, then a weighted policy where one heavily
+   weighted lens flips the verdict.
+7. Sampled-verdict judging: one critic sampled three times per round,
+   aggregated by median score and majority approval, to denoise a single
+   noisy judge call.
+8. Adaptive stop: a pre-critique revision gate that skips an already-good
+   draft, and a diminishing-returns stop that fires on a plateaued score
+   before the iteration cap.
+9. Reasoning critic: a single extended-thinking pass benchmarked against
+   the explicit multi-call loop on the same task.
 
 It also runs the empty-critique guard on its own, showing a loop stop
 immediately with the draft returned unrevised.
@@ -37,7 +48,17 @@ function builds its provider through `agentic_patterns.get_provider`.
 
 from __future__ import annotations
 
-from patterns.reflection import generator_critic, reflexion, rubric, self_refine, tool_grounded
+from patterns.reflection import (
+    adaptive_stop,
+    generator_critic,
+    multi_critic,
+    reasoning_critic,
+    reflexion,
+    rubric,
+    sampled_verdict,
+    self_refine,
+    tool_grounded,
+)
 from patterns.reflection.loop import ReflectionResult
 from patterns.reflection.transcript import format_transcript
 
@@ -74,7 +95,46 @@ def main() -> None:
     print(f"episodic memory carried into later attempts: {memory}")
     print()
 
-    print("All five sub-variants completed without exhausting their scripts.")
+    result = multi_critic.run_multi_critic_demo()
+    print(format_transcript(result, title="6. Multi-critic aggregation (veto policy)"))
+    print()
+
+    weighted_result = multi_critic.run_weighted_flip_demo()
+    weighted_scores = [it.critique.score for it in weighted_result.iterations]
+    print("6b. Weighted policy: a 3x-weighted safety lens flips the verdict")
+    print(f"    round scores {weighted_scores}: round 1 fails threshold 8.0 despite correctness=9, style=8")
+    print(f"    stopped: {weighted_result.stop_reason} after {len(weighted_result.iterations)} round(s)")
+    print()
+
+    sampled_result, sample_log = sampled_verdict.run_sampled_verdict_demo()
+    print("7. Sampled-verdict judging: one critic sampled 3 times per round")
+    for round_index, scores in enumerate(sample_log, start=1):
+        print(f"   round {round_index} samples: {scores} -> median {sorted(scores)[len(scores) // 2]:g}")
+    print(f"   stopped: {sampled_result.stop_reason} after {len(sampled_result.iterations)} round(s), "
+          f"final answer: {sampled_result.final_draft[:60]!r}...")
+    print()
+
+    gate_skip_result = adaptive_stop.run_gate_skip_demo()
+    print(format_transcript(gate_skip_result, title="8. Adaptive stop: revision gate skips an already-good draft"))
+    print()
+
+    diminishing_result = adaptive_stop.run_diminishing_returns_demo()
+    round_scores = [it.critique.score for it in diminishing_result.iterations]
+    print("8b. Adaptive stop: diminishing-returns stop")
+    print(f"    round scores {round_scores}: round 3's gain (0.2) is below epsilon (0.5)")
+    print(f"    stopped: {diminishing_result.stop_reason} after {len(diminishing_result.iterations)} round(s), "
+          f"never reaching the round-5 cap it was budgeted for")
+    print()
+
+    benchmark = reasoning_critic.run_benchmark()
+    print("9. Reasoning critic: single reasoning pass vs the explicit loop")
+    print(f"   single-pass reasoning trace: {benchmark.single_reasoning}")
+    print(f"   single-pass answer: {benchmark.single_answer!r} in {benchmark.single_calls} provider call")
+    print(f"   explicit-loop answer: {benchmark.loop_answer!r} in {benchmark.loop_calls} provider calls")
+    print(f"   answers agree: {reasoning_critic.answers_agree(benchmark)}")
+    print()
+
+    print("All nine sub-variants completed without exhausting their scripts.")
 
 
 def _best_round(result: ReflectionResult) -> int:
