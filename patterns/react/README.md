@@ -29,17 +29,41 @@ flowchart TD
     K -->|no| A
 ```
 
+`tree_search.py` replaces the single linear rollout above with a best-first search over a tree of trajectories:
+
+```mermaid
+flowchart TD
+    A[Pop highest-scored non-terminal node] --> B[Propose b candidate actions]
+    B --> C[Execute each candidate's tool, build a child node]
+    C --> D[Evaluator scores every child]
+    D --> E{Child is finish?}
+    E -->|yes| F[Terminal node]
+    E -->|no| G[Push child onto frontier]
+    F --> H{Best terminal score beats frontier best?}
+    G --> H
+    H -->|yes| I[Return best terminal's answer]
+    H -->|no| J{Node budget left?}
+    J -->|yes| A
+    J -->|no| K[Return best partial trajectory: force or generate]
+```
+
 ## Variants implemented
 
 - `parser.py`: the `Thought: ... / Action: Tool[args]` text grammar and its strict parse-failure behavior, unit-tested on its own.
-- `scratchpad.py`: the Thought/Action/Observation history, its rendering back into a prompt, observation truncation, and repeat detection.
+- `scratchpad.py`: the Thought/Action/Observation history, its rendering back into a prompt, observation truncation, and repeat detection. `max_observation_chars` truncation is the naive placeholder for context management: it caps one observation but never reclaims transcript length as steps accumulate. See `compaction.py` for the upgrade.
 - `text_loop.py`: few-shot and zero-shot text-parsing ReAct, the canonical form from the original paper, with force and generate early-stop policies.
-- `native_loop.py`: native tool-calling ReAct using structured `ToolCall` objects instead of parsed text; carries reasoning content across turns unmodified, which is also the right handling for a reasoning model's thinking output.
+- `native_loop.py`: native tool-calling ReAct using structured `ToolCall` objects instead of parsed text; carries reasoning content across turns unmodified, which is also the right handling for a reasoning model's thinking output. Its `_repeats_previous_call` guard only catches an exact repeat of the immediately preceding turn; see `derailment.py` for oscillation, no-progress, and error-storm detectors it misses.
 - `programmatic.py`: batched tool calling, where one model turn requests several independent tool calls at once instead of one call per round trip.
-- `reflexion.py`: ReAct plus Reflexion, an outer loop that retries a failed episode after the agent writes a self-critique of its own trajectory.
+- `reflexion.py`: ReAct plus Reflexion, an outer loop that retries a failed episode after the agent writes a self-critique of its own trajectory. This only fires when an episode stops _without_ reaching Finish; a confidently wrong Finish is accepted as-is. See `verify.py` for that gap.
+- `tree_search.py`: LATS-lite best-first search over ReAct trajectories, branching into several candidate actions per node, scoring each with an evaluator call, and backtracking to a higher-scored sibling instead of committing to a single linear rollout.
+- `compaction.py`: summarize-and-continue context management, folding the oldest steps into a scripted summary note once the running transcript crosses a size threshold, keeping the most recent steps verbatim.
+- `self_consistency.py`: runs several independent ReAct rollouts and votes on the final answer, with early stop once one answer has an unbeatable lead and an optional confidence-weighted soft vote.
+- `verify.py`: a verify-before-finish gate that asks a verifier whether a proposed Finish is actually supported by the trajectory before accepting it, rejecting and continuing when it is not.
+- `derailment.py`: pure-function detectors for oscillation, no-progress, and error-storm trajectory failures, beyond exact-repeat, with a one-time recovery nudge before giving up.
+- `reasoning_loop.py`: a thin extension of `native_loop.py` that carries a reasoning-model's `reasoning` channel verbatim across turns and adds no `Thought:` scaffolding to the prompt.
 - `world.py`: the toy knowledge base and the two tools (`search`, `lookup`) every demo above answers questions against.
 
-Not implemented, with reasons: Plan-then-execute and ReWOO decouple planning from execution entirely rather than adding a ReAct variant, and belong in `patterns/planning/`, not here. Tree-search ReAct (LATS) needs a value estimate over candidate trajectories that a scripted mock cannot meaningfully produce offline. An MCP tool adapter would only wrap `ToolRegistry` in a transport layer with no new offline-testable loop behavior, and subagent delegation is a multi-agent concern better suited to `patterns/multi_agent/`. An explicit verify phase is covered by `reflexion.py`'s self-critique step rather than duplicated as a separate always-on stage.
+Not implemented, with reasons: Plan-then-execute and ReWOO decouple planning from execution entirely rather than adding a ReAct variant, and belong in `patterns/planning/`, not here. An MCP tool adapter would only wrap `ToolRegistry` in a transport layer with no new offline-testable loop behavior, and subagent delegation is a multi-agent concern better suited to `patterns/multi_agent/`. Full stochastic MCTS (UCB selection, rollout simulation, value backpropagation), process reward model training, and a CoT-SC switching router were all considered and left out; see `docs/research/react_deep.md` for why.
 
 ## Run it
 
@@ -59,6 +83,13 @@ Step 1
   Observation: The Great Wall is located in China.
 ...
 Answer:  Beijing
+
+=== 6. Best-first tree search (LATS-lite) ===
+  node 0: score=0 (frontier)
+  node 1: score=6 (frontier)
+...
+Expansion order: [0, 1, 2]
+Answer:  Beijing
 ```
 
 ## Real providers
@@ -76,3 +107,13 @@ Every demo calls `get_provider(script=...)`, which defaults to `MockProvider`. S
 - Lilian Weng, "LLM Powered Autonomous Agents," Lil'Log, 2023. https://lilianweng.github.io/posts/2023-06-23-agent/
 - Anthropic, "Building Effective Agents," 2024. https://www.anthropic.com/research/building-effective-agents
 - LangGraph docs, `create_agent` (successor to the deprecated `create_react_agent`). https://langchain-ai.github.io/langgraph/
+- Andy Zhou et al., "Language Agent Tree Search Unifies Reasoning, Acting, and Planning in Language Models," 2023. https://arxiv.org/abs/2310.04406
+- Jing Yu Koh, Stephen McAleer, Daniel Fried et al., "Tree Search for Language Model Agents," July 2024. https://arxiv.org/abs/2407.01476
+- Han Wang, Archiki Prasad, et al., "Soft Self-Consistency Improves Language Model Agents," February 2024. https://arxiv.org/abs/2402.13212
+- Chenlong Wang et al., "Wait, We Don't Need to 'Wait'! Removing Thinking Tokens Improves Reasoning Efficiency" (NoWait), June 2025. https://arxiv.org/abs/2506.08343
+- Zhu et al., "Where LLM Agents Fail and How They can Learn From Failures," September 2025. https://arxiv.org/abs/2509.25370
+- Rana et al., "Model-First Reasoning LLM Agents: Reducing Hallucinations through Explicit Problem Modeling," December 2025. https://arxiv.org/abs/2512.14474
+- Khushal Sethi, "Don't Overthink It: Inter-Rollout Action Agreement as a Free Adaptive-Compute Signal for LLM Agents" (TrACE), April 2026. https://arxiv.org/abs/2604.08369
+- Xia et al., "Diagnosing and Mitigating Context Rot in Long-horizon Search," June 2026. https://arxiv.org/abs/2606.29718
+- Anthropic, "Effective context engineering for AI agents," September 29, 2025. https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents
+- Anthropic, "Effective harnesses for long-running agents," November 26, 2025. https://www.anthropic.com/engineering/effective-harnesses-for-long-running-agents

@@ -38,7 +38,10 @@ class Scratchpad:
         steps: Steps recorded so far, in order.
         max_observation_chars: Observations longer than this are truncated
             before being stored, so a single verbose tool result cannot blow
-            up the prompt on later iterations.
+            up the prompt on later iterations. This is the naive placeholder
+            for context management: it caps one observation but never
+            reclaims transcript length once many steps accumulate. See
+            `compaction.py` for the summarize-and-continue upgrade.
     """
 
     max_observation_chars: int = 500

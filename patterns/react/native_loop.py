@@ -84,7 +84,14 @@ def _tool_call_signature(message: Message) -> list[tuple[str, tuple[tuple[str, o
 
 
 def _repeats_previous_call(messages: list[Message]) -> bool:
-    """Detect two consecutive assistant turns that request the identical tool call(s)."""
+    """Detect two consecutive assistant turns that request the identical tool call(s).
+
+    This only catches an exact repeat of the immediately preceding turn. It
+    does not see oscillation (A, B, A, B), no-progress (different actions,
+    the same observations), or a run of tool errors, since none of those are
+    literally identical to the turn right before them. See `derailment.py`
+    for detectors that cover those failure modes.
+    """
     assistant_turns = [m for m in messages if m.role == "assistant" and m.tool_calls]
     if len(assistant_turns) < 2:
         return False

@@ -68,7 +68,10 @@ def _build_arguments(tools: ToolRegistry, tool_name: str, args_text: str) -> dic
     """Map a single bracketed `Tool[args]` string onto the tool's one parameter.
 
     Every tool wired to this loop must declare exactly one parameter, since
-    the grammar carries exactly one positional string.
+    the grammar carries exactly one positional string. This is a limitation
+    of the text grammar, not of ReAct itself: `native_loop.py` and
+    `tree_search.py` carry full structured argument objects and have no such
+    restriction.
 
     Raises:
         KeyError: If `tool_name` is not registered.
