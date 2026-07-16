@@ -90,6 +90,10 @@ All nine sub-variants completed without exhausting their scripts.
 
 Set `AGENTIC_PATTERNS_PROVIDER=openai` (with `OPENAI_API_KEY` set) or `AGENTIC_PATTERNS_PROVIDER=anthropic` (with `ANTHROPIC_API_KEY` set) to run the same code against a real model. Every demo function builds its provider through `agentic_patterns.get_provider`, so no source change is needed. Two exceptions never call a provider for critique by design: `tool_grounded.py`'s critique step is grounded in a local checker, and `adaptive_stop.py`'s gate skips critique entirely when it fires. `reasoning_critic.py` is worth pointing at a real reasoning model in particular; its whole point is comparing what that model's native `reasoning` channel already does against the explicit loop.
 
+## Measured
+
+Against Gemini 3.1 Flash-Lite on 14 code tasks graded by real unit tests, one-shot and reflection both scored 1.00: the model solved every task on the first attempt, so the loop had nothing to correct. This is an honest ceiling. The loop demonstrably recovers failures when they occur (the offline harness lifts a scripted 50% one-shot rate to 93%), but reflection helps only when the base model fails, which this model did not on these tasks. Full method and numbers in [RESULTS.md](../../RESULTS.md#reflection-a-ceiling-result-reported-as-is).
+
 ## Sources
 
 - Aman Madaan et al., "Self-Refine: Iterative Refinement with Self-Feedback," NeurIPS 2023. arXiv:2303.17651.

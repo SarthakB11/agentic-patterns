@@ -103,6 +103,10 @@ Every demo calls `get_provider(script=...)`, which defaults to `MockProvider`. S
 - `AGENTIC_PATTERNS_PROVIDER=openai` plus `OPENAI_API_KEY` (and optionally `OPENAI_MODEL`, `OPENAI_BASE_URL`).
 - `AGENTIC_PATTERNS_PROVIDER=anthropic` plus `ANTHROPIC_API_KEY` (and optionally `ANTHROPIC_MODEL`).
 
+## Measured
+
+Against Gemini 3.1 Flash-Lite on 15 two-hop questions over an invented knowledge base, the native tool-calling loop lifted task success from 0.07 (a single completion with no tools) to 0.67. The verify-before-finish gate did not help on this set and slightly lowered success to 0.60, since its extra call per finish attempt can exhaust the iteration budget. Full method and numbers in [RESULTS.md](../../RESULTS.md#react-reasoning-and-acting-beats-a-single-call).
+
 ## Sources
 
 - Shunyu Yao et al., "ReAct: Synergizing Reasoning and Acting in Language Models," 2022. https://arxiv.org/abs/2210.03629

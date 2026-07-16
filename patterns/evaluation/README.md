@@ -108,6 +108,10 @@ All fourteen sections completed without exhausting their scripts.
 
 Set `AGENTIC_PATTERNS_PROVIDER=openai` (with `OPENAI_API_KEY` set) or `AGENTIC_PATTERNS_PROVIDER=anthropic` (with `ANTHROPIC_API_KEY` set) to run every judge in this pattern against a real model, with no source change: each demo function builds its provider through `agentic_patterns.get_provider`. Set `AGENTIC_PATTERNS_EMBEDDER=openai` (with `OPENAI_API_KEY` set) to run `semantic.py` against real embeddings instead of the deterministic `HashEmbedder`.
 
+## Measured
+
+Against Gemini 3.1 Flash-Lite on 20 human-labeled answers, a correctness-aligned judge reached 0.95 accuracy and Cohen's kappa 0.90 with no position bias. An earlier version scored 0.60 accuracy and kappa 0.20 because its rubric graded support-desk polish instead of correctness, a mismatch this benchmark caught and fixed. Full method and numbers in [RESULTS.md](../../RESULTS.md#evaluation-a-judge-is-only-as-good-as-the-question-you-ask-it).
+
 ## Sources
 
 - Chip Huyen, _AI Engineering_ (O'Reilly, 2025), Ch. 3 "Evaluation Methodology" and Ch. 4 "Evaluate AI Systems".

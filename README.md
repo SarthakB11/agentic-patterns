@@ -13,6 +13,17 @@ Twelve core agentic AI patterns implemented as runnable, tested reference code i
 
 Agent frameworks change monthly; the patterns underneath them do not. This repo implements the patterns themselves, without a framework, so you can see exactly what a supervisor, a reflection loop, or an MCP handshake does at the level of messages and control flow. Each module is teaching code: typed, documented, tested, and small enough to read in one sitting, with the research it implements cited next to the mechanism. Each folder README says which sub-variants were left out and why, so the coverage claims are checkable, and every citation was verified against its primary source before shipping.
 
+## Measured results
+
+The patterns are not only implemented, they are measured. Running the repo's own code against a real model (Gemini 3.1 Flash-Lite) on small task sets with real ground truth shows the upgrades have the effect the research predicts:
+
+- Tool-using ReAct lifts two-hop question answering from 0.07 to 0.67 over a no-tools baseline (N=15).
+- A semantic router picks the right model tier 96% of the time at about half the cost of always using the strong model (N=24).
+- LLM reranking takes RAG hit@1 from 0.93 to 1.00 on a corpus built with keyword-collision distractors (N=30).
+- A correctness-aligned judge agrees with human labels 95% of the time, Cohen's kappa 0.90 (N=20).
+
+The full report, including an honest ceiling result for reflection and a judge-rubric bug this suite caught and fixed, is in [RESULTS.md](RESULTS.md). The whole live sweep cost about $0.035 and reproduces with `GEMINI_KEY=... python3 -m benchmarks.run_all --live`.
+
 ## Quickstart
 
 ```bash

@@ -103,6 +103,10 @@ All fourteen RAG variant demos completed without exhausting their scripts.
 
 Set `AGENTIC_PATTERNS_PROVIDER=openai` (with `OPENAI_API_KEY` set) or `AGENTIC_PATTERNS_PROVIDER=anthropic` (with `ANTHROPIC_API_KEY` set) to run the same code against a real model. Set `AGENTIC_PATTERNS_EMBEDDER=openai` (with `OPENAI_API_KEY` set) to embed with a real embedding model instead of the deterministic `HashEmbedder`. Every demo function builds its provider through `agentic_patterns.get_provider` and its embedder through `agentic_patterns.get_embedder`, so no source change is needed.
 
+## Measured
+
+Against real Gemini embeddings on a 28-passage corpus with keyword-collision distractors and 30 questions (half paraphrased away from the answer's wording), hit@1 was 0.93 for dense, 0.90 for hybrid (adding BM25 fusion slightly hurt on this set), and 1.00 once an LLM reranker reordered an over-fetched shortlist. Full method and numbers in [RESULTS.md](../../RESULTS.md#rag-reranking-recovers-the-hard-retrievals).
+
 ## Sources
 
 - Jay Alammar and Maarten Grootendorst, _Hands-On Large Language Models_ (O'Reilly, 2024), Chapter 8, "Semantic Search and RAG."

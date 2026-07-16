@@ -87,6 +87,10 @@ All twelve sub-variants and the end-to-end pipeline completed without exhausting
 
 Set `AGENTIC_PATTERNS_PROVIDER=openai` (with `OPENAI_API_KEY` set) or `AGENTIC_PATTERNS_PROVIDER=anthropic` (with `ANTHROPIC_API_KEY` set) to run the same code against a real model. Every demo function that calls a model builds its provider through `agentic_patterns.get_provider`, so no source change is needed. `rule_based.py` and `semantic.py` make no model call at all and are unaffected by this setting; set `AGENTIC_PATTERNS_EMBEDDER=openai` (with `OPENAI_API_KEY` set) to route `semantic.py` through real embeddings instead of the deterministic hash embedder.
 
+## Measured
+
+Against Gemini 3.1 Flash-Lite on 24 tier-labeled prompts, the semantic router matched the correct tier 96% of the time (the LLM-classifier router 88%, an always-strong baseline 50%), while projecting about half the answer cost of sending every task to the strong model. Full method and numbers in [RESULTS.md](../../RESULTS.md#routing-match-the-strong-models-choices-for-half-the-cost).
+
 ## Sources
 
 - Antonio Gulli, _Agentic Design Patterns_ (Springer, 2025), Chapter 2 "Routing." LLM-based, embedding-based, and rule/ML routing with LangChain/LangGraph, CrewAI, and Google ADK.
