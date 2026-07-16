@@ -1,0 +1,344 @@
+{
+  "name": "bench_react",
+  "model": "gemini-3.1-flash-lite",
+  "n": 15,
+  "variants": {
+    "direct": 0.06666666666666667,
+    "react": 0.6666666666666666,
+    "react_verify": 0.6
+  },
+  "headline": "On 15 invented two-hop questions, direct answering succeeded on 7% of tasks versus react 67% and react_verify 60%, with react best; mean model calls per task were direct 1.0, react 5.0, react_verify 5.5.",
+  "detail": {
+    "mean_model_calls": {
+      "direct": 1,
+      "react": 5,
+      "react_verify": 5.533333333333333
+    }
+  },
+  "tasks": [
+    {
+      "id": "t01",
+      "variant": "direct",
+      "answer": "The Kelvorin River is a fictional location; therefore, it has no real-world capital.",
+      "correct": false,
+      "model_calls": 1
+    },
+    {
+      "id": "t02",
+      "variant": "direct",
+      "answer": "The Duskfall Mountains are a fictional location and do not exist in the real world; therefore, they have no currency.",
+      "correct": false,
+      "model_calls": 1
+    },
+    {
+      "id": "t03",
+      "variant": "direct",
+      "answer": "French.",
+      "correct": false,
+      "model_calls": 1
+    },
+    {
+      "id": "t04",
+      "variant": "direct",
+      "answer": "Cindrapass is a fictional location and does not exist in any real-world country.",
+      "correct": false,
+      "model_calls": 1
+    },
+    {
+      "id": "t05",
+      "variant": "direct",
+      "answer": "The Orven Delta empties into the **Kingdom of Aethelgard**, which was founded by **King Alaric the Unifier**.",
+      "correct": false,
+      "model_calls": 1
+    },
+    {
+      "id": "t06",
+      "variant": "direct",
+      "answer": "Sablewood Forest is a fictional location; therefore, it does not exist within a real-world country.",
+      "correct": false,
+      "model_calls": 1
+    },
+    {
+      "id": "t07",
+      "variant": "direct",
+      "answer": "\"God Save the King\" (or \"God Save the Queen\")",
+      "correct": false,
+      "model_calls": 1
+    },
+    {
+      "id": "t08",
+      "variant": "direct",
+      "answer": "The Glasmere Strait is a fictional location; therefore, it has no real-world country or capital.",
+      "correct": false,
+      "model_calls": 1
+    },
+    {
+      "id": "t09",
+      "variant": "direct",
+      "answer": "Ironreach Canyon is a fictional location; therefore, it does not belong to a real-world country with a chief export.",
+      "correct": false,
+      "model_calls": 1
+    },
+    {
+      "id": "t10",
+      "variant": "direct",
+      "answer": "Canberra",
+      "correct": false,
+      "model_calls": 1
+    },
+    {
+      "id": "t11",
+      "variant": "direct",
+      "answer": "The Kelvorin River is a fictional location; therefore, it has no real-world capital.",
+      "correct": false,
+      "model_calls": 1
+    },
+    {
+      "id": "t12",
+      "variant": "direct",
+      "answer": "There is no country with a capital named Northarrow, nor is there a location known as Cindrapass. These appear to be fictional or non-existent entities.",
+      "correct": true,
+      "model_calls": 1
+    },
+    {
+      "id": "t13",
+      "variant": "direct",
+      "answer": "The Duskfall Mountains are a fictional location; therefore, they do not have a real-world currency. If you are referring to a specific fictional universe (such as a tabletop campaign or novel), please specify the setting.",
+      "correct": false,
+      "model_calls": 1
+    },
+    {
+      "id": "t14",
+      "variant": "direct",
+      "answer": "The language spoken around Lake Azurine is **Azurine**.",
+      "correct": false,
+      "model_calls": 1
+    },
+    {
+      "id": "t15",
+      "variant": "direct",
+      "answer": "The capital of the nation holding Sablewood Forest (in the context of the *Dungeons & Dragons* setting of Eberron) is **Fairhaven**, the capital of Aundair.",
+      "correct": false,
+      "model_calls": 1
+    },
+    {
+      "id": "t01",
+      "variant": "react",
+      "answer": "Marveth",
+      "correct": true,
+      "model_calls": 4
+    },
+    {
+      "id": "t02",
+      "variant": "react",
+      "answer": "Stopped: could not reach an answer within the iteration budget.",
+      "correct": false,
+      "model_calls": 6
+    },
+    {
+      "id": "t03",
+      "variant": "react",
+      "answer": "Vessic",
+      "correct": true,
+      "model_calls": 6
+    },
+    {
+      "id": "t04",
+      "variant": "react",
+      "answer": "Stopped: could not reach an answer within the iteration budget.",
+      "correct": false,
+      "model_calls": 6
+    },
+    {
+      "id": "t05",
+      "variant": "react",
+      "answer": "Stopped: could not reach an answer within the iteration budget.",
+      "correct": false,
+      "model_calls": 6
+    },
+    {
+      "id": "t06",
+      "variant": "react",
+      "answer": "Duskhollow",
+      "correct": true,
+      "model_calls": 6
+    },
+    {
+      "id": "t07",
+      "variant": "react",
+      "answer": "Song of the Wide Field",
+      "correct": true,
+      "model_calls": 6
+    },
+    {
+      "id": "t08",
+      "variant": "react",
+      "answer": "Greyholt",
+      "correct": true,
+      "model_calls": 4
+    },
+    {
+      "id": "t09",
+      "variant": "react",
+      "answer": "Stopped: could not reach an answer within the iteration budget.",
+      "correct": false,
+      "model_calls": 6
+    },
+    {
+      "id": "t10",
+      "variant": "react",
+      "answer": "Fenhall",
+      "correct": true,
+      "model_calls": 4
+    },
+    {
+      "id": "t11",
+      "variant": "react",
+      "answer": "Marveth",
+      "correct": true,
+      "model_calls": 4
+    },
+    {
+      "id": "t12",
+      "variant": "react",
+      "answer": "Grendale",
+      "correct": false,
+      "model_calls": 3
+    },
+    {
+      "id": "t13",
+      "variant": "react",
+      "answer": "The currency used in the Duskfall Mountains (Palvaria) is the drenn.",
+      "correct": true,
+      "model_calls": 5
+    },
+    {
+      "id": "t14",
+      "variant": "react",
+      "answer": "Vessic",
+      "correct": true,
+      "model_calls": 5
+    },
+    {
+      "id": "t15",
+      "variant": "react",
+      "answer": "Duskhollow",
+      "correct": true,
+      "model_calls": 4
+    },
+    {
+      "id": "t01",
+      "variant": "react_verify",
+      "answer": "Marveth",
+      "correct": true,
+      "model_calls": 5
+    },
+    {
+      "id": "t02",
+      "variant": "react_verify",
+      "answer": "drenn",
+      "correct": true,
+      "model_calls": 5
+    },
+    {
+      "id": "t03",
+      "variant": "react_verify",
+      "answer": "Stopped: could not reach an answer within the iteration budget.",
+      "correct": false,
+      "model_calls": 6
+    },
+    {
+      "id": "t04",
+      "variant": "react_verify",
+      "answer": "Stopped: could not reach an answer within the iteration budget.",
+      "correct": false,
+      "model_calls": 6
+    },
+    {
+      "id": "t05",
+      "variant": "react_verify",
+      "answer": "Stopped: could not reach an answer within the iteration budget.",
+      "correct": false,
+      "model_calls": 6
+    },
+    {
+      "id": "t06",
+      "variant": "react_verify",
+      "answer": "Duskhollow",
+      "correct": true,
+      "model_calls": 7
+    },
+    {
+      "id": "t07",
+      "variant": "react_verify",
+      "answer": "Song of the Wide Field",
+      "correct": true,
+      "model_calls": 6
+    },
+    {
+      "id": "t08",
+      "variant": "react_verify",
+      "answer": "Greyholt",
+      "correct": true,
+      "model_calls": 5
+    },
+    {
+      "id": "t09",
+      "variant": "react_verify",
+      "answer": "Information regarding the chief export of Tammerlin is not available.",
+      "correct": false,
+      "model_calls": 6
+    },
+    {
+      "id": "t10",
+      "variant": "react_verify",
+      "answer": "Fenhall",
+      "correct": true,
+      "model_calls": 5
+    },
+    {
+      "id": "t11",
+      "variant": "react_verify",
+      "answer": "Marveth",
+      "correct": true,
+      "model_calls": 5
+    },
+    {
+      "id": "t12",
+      "variant": "react_verify",
+      "answer": "Grendale",
+      "correct": false,
+      "model_calls": 4
+    },
+    {
+      "id": "t13",
+      "variant": "react_verify",
+      "answer": "drenn",
+      "correct": true,
+      "model_calls": 6
+    },
+    {
+      "id": "t14",
+      "variant": "react_verify",
+      "answer": "Stopped: could not reach an answer within the iteration budget.",
+      "correct": false,
+      "model_calls": 6
+    },
+    {
+      "id": "t15",
+      "variant": "react_verify",
+      "answer": "Duskhollow",
+      "correct": true,
+      "model_calls": 5
+    }
+  ],
+  "usage": {
+    "model": "gemini-3.1-flash-lite",
+    "input_tokens": 28329,
+    "output_tokens": 1722,
+    "api_calls": 93,
+    "cache_hits": 80,
+    "cost_usd": 0.0097,
+    "stamped_at": "2026-07-16"
+  }
+}

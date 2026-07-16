@@ -26,3 +26,7 @@ htmlcov/
 # Internal research notes, never published
 docs/research/
 
+
+# Benchmark response cache (local, never published)
+benchmarks/.cache/
+.env

@@ -1,0 +1,230 @@
+{
+  "name": "bench_evaluation",
+  "model": "gemini-3.1-flash-lite",
+  "n": 20,
+  "variants": {
+    "pointwise_accuracy": 0.95,
+    "cohens_kappa": 0.8999999999999999,
+    "position_consistency": 1.0
+  },
+  "headline": "LLM judge (gemini-3.1-flash-lite) scored 95% pointwise accuracy (kappa 0.90) against 20 human labels, with 100% position consistency over 5 pairwise comparisons.",
+  "detail": {
+    "n_pointwise_items": 20,
+    "n_pairwise_pairs": 5,
+    "judge_pass_rate": 0.55,
+    "human_pass_rate": 0.5,
+    "correct_count": 19,
+    "consistent_pairs": 5
+  },
+  "tasks": [
+    {
+      "id": "q01",
+      "variant": "pointwise",
+      "question": "What is your refund policy?",
+      "human_label": true,
+      "judge_label": true,
+      "correct": true
+    },
+    {
+      "id": "q02",
+      "variant": "pointwise",
+      "question": "What is your refund policy?",
+      "human_label": false,
+      "judge_label": false,
+      "correct": true
+    },
+    {
+      "id": "q03",
+      "variant": "pointwise",
+      "question": "How do I cancel my subscription?",
+      "human_label": true,
+      "judge_label": true,
+      "correct": true
+    },
+    {
+      "id": "q04",
+      "variant": "pointwise",
+      "question": "How do I cancel my subscription?",
+      "human_label": false,
+      "judge_label": false,
+      "correct": true
+    },
+    {
+      "id": "q05",
+      "variant": "pointwise",
+      "question": "What is the capital of France?",
+      "human_label": true,
+      "judge_label": true,
+      "correct": true
+    },
+    {
+      "id": "q06",
+      "variant": "pointwise",
+      "question": "What is the capital of France?",
+      "human_label": false,
+      "judge_label": false,
+      "correct": true
+    },
+    {
+      "id": "q07",
+      "variant": "pointwise",
+      "question": "How many days are in a leap year?",
+      "human_label": true,
+      "judge_label": true,
+      "correct": true
+    },
+    {
+      "id": "q08",
+      "variant": "pointwise",
+      "question": "How many days are in a leap year?",
+      "human_label": false,
+      "judge_label": false,
+      "correct": true
+    },
+    {
+      "id": "q09",
+      "variant": "pointwise",
+      "question": "What is the boiling point of water at sea level in Celsius?",
+      "human_label": true,
+      "judge_label": true,
+      "correct": true
+    },
+    {
+      "id": "q10",
+      "variant": "pointwise",
+      "question": "What is the boiling point of water at sea level in Celsius?",
+      "human_label": false,
+      "judge_label": false,
+      "correct": true
+    },
+    {
+      "id": "q11",
+      "variant": "pointwise",
+      "question": "What is the status of order 48213?",
+      "human_label": true,
+      "judge_label": true,
+      "correct": true
+    },
+    {
+      "id": "q12",
+      "variant": "pointwise",
+      "question": "What is the status of order 48213?",
+      "human_label": false,
+      "judge_label": true,
+      "correct": false
+    },
+    {
+      "id": "q13",
+      "variant": "pointwise",
+      "question": "How do I reset my password?",
+      "human_label": true,
+      "judge_label": true,
+      "correct": true
+    },
+    {
+      "id": "q14",
+      "variant": "pointwise",
+      "question": "How do I reset my password?",
+      "human_label": false,
+      "judge_label": false,
+      "correct": true
+    },
+    {
+      "id": "q15",
+      "variant": "pointwise",
+      "question": "What payment methods do you accept?",
+      "human_label": true,
+      "judge_label": true,
+      "correct": true
+    },
+    {
+      "id": "q16",
+      "variant": "pointwise",
+      "question": "What payment methods do you accept?",
+      "human_label": false,
+      "judge_label": false,
+      "correct": true
+    },
+    {
+      "id": "q17",
+      "variant": "pointwise",
+      "question": "What is 12 multiplied by 12?",
+      "human_label": true,
+      "judge_label": true,
+      "correct": true
+    },
+    {
+      "id": "q18",
+      "variant": "pointwise",
+      "question": "What is 12 multiplied by 12?",
+      "human_label": false,
+      "judge_label": false,
+      "correct": true
+    },
+    {
+      "id": "q19",
+      "variant": "pointwise",
+      "question": "Who wrote the play Hamlet?",
+      "human_label": true,
+      "judge_label": true,
+      "correct": true
+    },
+    {
+      "id": "q20",
+      "variant": "pointwise",
+      "question": "Who wrote the play Hamlet?",
+      "human_label": false,
+      "judge_label": false,
+      "correct": true
+    },
+    {
+      "id": "refund_policy",
+      "variant": "pairwise",
+      "order_ab_winner": "a",
+      "order_ba_winner": "b",
+      "aggregated_winner": "candidate_a",
+      "consistent": true
+    },
+    {
+      "id": "cancel_subscription",
+      "variant": "pairwise",
+      "order_ab_winner": "a",
+      "order_ba_winner": "b",
+      "aggregated_winner": "candidate_a",
+      "consistent": true
+    },
+    {
+      "id": "capital_of_france",
+      "variant": "pairwise",
+      "order_ab_winner": "a",
+      "order_ba_winner": "b",
+      "aggregated_winner": "candidate_a",
+      "consistent": true
+    },
+    {
+      "id": "leap_year_days",
+      "variant": "pairwise",
+      "order_ab_winner": "a",
+      "order_ba_winner": "b",
+      "aggregated_winner": "candidate_a",
+      "consistent": true
+    },
+    {
+      "id": "boiling_point",
+      "variant": "pairwise",
+      "order_ab_winner": "a",
+      "order_ba_winner": "b",
+      "aggregated_winner": "candidate_a",
+      "consistent": true
+    }
+  ],
+  "usage": {
+    "model": "gemini-3.1-flash-lite",
+    "input_tokens": 3672,
+    "output_tokens": 1745,
+    "api_calls": 30,
+    "cache_hits": 0,
+    "cost_usd": 0.0035,
+    "stamped_at": "2026-07-16"
+  }
+}

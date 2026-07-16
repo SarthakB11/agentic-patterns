@@ -40,7 +40,7 @@ ignore = ["B905", "N818"]
 "tests/**" = ["E501", "N802"]
 
 [tool.pyright]
-include = ["agentic_patterns", "patterns"]
+include = ["agentic_patterns", "patterns", "benchmarks"]
 pythonVersion = "3.11"
 typeCheckingMode = "basic"
 reportMissingImports = false
