@@ -28,7 +28,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from agentic_patterns import Embedder, Provider, get_embedder, get_provider
-
 from patterns.rag.assembly import deduplicate, fit_to_budget
 from patterns.rag.chunking import Chunk, ScoredChunk
 from patterns.rag.corpus import default_chunks
@@ -41,7 +40,9 @@ _DEMO_QUERY = (
 )
 
 
-def order_preserve_assemble(scored_chunks: list[ScoredChunk], *, token_budget: int = 200, dedup: bool = True) -> list[Chunk]:
+def order_preserve_assemble(
+    scored_chunks: list[ScoredChunk], *, token_budget: int = 200, dedup: bool = True
+) -> list[Chunk]:
     """Assemble context ordered by source document position, not by score.
 
     Runs the same dedup and budget steps as `assembly.assemble_context`;

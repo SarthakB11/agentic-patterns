@@ -25,7 +25,6 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 
 from agentic_patterns import Message, Provider, ToolCall, ToolRegistry, get_provider
-
 from patterns.planning.parser import parse_plan
 from patterns.planning.plan import Plan, StepResult, is_error_observation, substitute_args
 from patterns.planning.tools import hotel_rate_per_night
@@ -210,7 +209,9 @@ def demo() -> None:
     if run.results:
         for result in run.results:
             print(f"  {result.step_id} -> {result.output}")
-    print("Note: Paris ($630) broke the $500 cap; the back-prompt carried that critique and round 1's Lyon plan passed.")
+    print(
+        "Note: Paris ($630) broke the $500 cap; the back-prompt carried that critique and round 1's Lyon plan passed."
+    )
 
 
 if __name__ == "__main__":

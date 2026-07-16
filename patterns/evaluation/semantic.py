@@ -10,7 +10,6 @@ call and no trained model to run offline.
 from __future__ import annotations
 
 from agentic_patterns import Embedder, cosine_similarity, get_embedder
-
 from patterns.evaluation.eval_set import EvalCase
 from patterns.evaluation.exact import Score
 

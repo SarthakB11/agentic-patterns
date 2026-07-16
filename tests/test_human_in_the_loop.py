@@ -13,7 +13,6 @@ import json
 import pytest
 
 from agentic_patterns import MockProvider, ToolCall, scripted_tool_call
-
 from patterns.human_in_the_loop import (
     approval_gate,
     approval_memory,
@@ -28,7 +27,11 @@ from patterns.human_in_the_loop import (
     risk_classifier,
     risk_tier,
 )
-from patterns.human_in_the_loop.fake_tools import build_extended_ops_registry, build_refund_registry, build_support_ops_registry
+from patterns.human_in_the_loop.fake_tools import (
+    build_extended_ops_registry,
+    build_refund_registry,
+    build_support_ops_registry,
+)
 from patterns.human_in_the_loop.gate import (
     AuditLog,
     Decision,

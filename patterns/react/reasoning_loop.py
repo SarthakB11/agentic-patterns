@@ -32,7 +32,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from agentic_patterns import Completion, Message, Provider, ToolCall, ToolRegistry, get_provider
-
 from patterns.react.native_loop import NATIVE_SYSTEM_PROMPT, _repeats_previous_call, build_native_registry
 
 DEFAULT_FORCE_MESSAGE = "Stopped: could not reach an answer within the iteration budget."
@@ -102,7 +101,9 @@ def run_reasoning_react(
         if finished_answer is not None:
             return ReasoningReactResult(finished_answer, messages, step_num, "finish", thinking_budget)
 
-    return ReasoningReactResult(DEFAULT_FORCE_MESSAGE, messages, max_iterations, "max_iterations_force", thinking_budget)
+    return ReasoningReactResult(
+        DEFAULT_FORCE_MESSAGE, messages, max_iterations, "max_iterations_force", thinking_budget
+    )
 
 
 def demo_reasoning() -> ReasoningReactResult:

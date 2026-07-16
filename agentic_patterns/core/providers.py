@@ -229,7 +229,12 @@ def _to_anthropic_messages(messages: list[Message]) -> list[dict[str, Any]]:
         elif m.role == "tool":
             block = {"type": "tool_result", "tool_use_id": m.tool_call_id, "content": m.content}
             last = result[-1] if result else None
-            if last and last["role"] == "user" and isinstance(last["content"], list) and last["content"][0].get("type") == "tool_result":
+            if (
+                last is not None
+                and last["role"] == "user"
+                and isinstance(last["content"], list)
+                and last["content"][0].get("type") == "tool_result"
+            ):
                 last["content"].append(block)
             else:
                 result.append({"role": "user", "content": [block]})

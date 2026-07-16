@@ -144,7 +144,9 @@ def run_subagent_demo(parent_provider: Provider, child_provider: Provider) -> tu
     task.payload = question
     task.transition("in_progress", "delegated to child subagent")
 
-    child_answer = child_provider.complete([Message.user(question)], system="Answer the question in one clause.").content
+    child_answer = child_provider.complete(
+        [Message.user(question)], system="Answer the question in one clause."
+    ).content
     task.transition("completed", "child returned an answer, control returns to parent")
 
     final_answer = parent_provider.complete(

@@ -64,9 +64,8 @@ def _validate_value(value: Any, schema: dict[str, Any], path: str) -> list[str]:
     elif expected_type == "number":
         if not isinstance(value, (int, float)) or isinstance(value, bool):
             errors.append(f"{path}: expected number, got {type(value).__name__}")
-    elif expected_type in type_map:
-        if not isinstance(value, type_map[expected_type]):
-            errors.append(f"{path}: expected {expected_type}, got {type(value).__name__}")
+    elif expected_type in type_map and not isinstance(value, type_map[expected_type]):
+        errors.append(f"{path}: expected {expected_type}, got {type(value).__name__}")
     if errors:
         return errors
     if "enum" in schema and value not in schema["enum"]:

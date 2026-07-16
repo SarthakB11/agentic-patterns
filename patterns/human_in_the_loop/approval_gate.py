@@ -17,7 +17,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from agentic_patterns import Message, Provider, get_provider, scripted_tool_call
-
 from patterns.human_in_the_loop.fake_tools import build_refund_registry
 from patterns.human_in_the_loop.gate import (
     AuditLog,

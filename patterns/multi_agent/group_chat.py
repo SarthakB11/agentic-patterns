@@ -98,7 +98,10 @@ def run_group_chat_demo() -> GroupChatResult:
     )
     participants = {
         "engineer": get_provider(
-            script=["A Redis cache in front of checkout would cut our p95 read latency, but adds an operational dependency."]
+            script=[
+                "A Redis cache in front of checkout would cut our p95 read latency, "
+                "but adds an operational dependency."
+            ]
         ),
         "skeptic": get_provider(
             script=["Before adding Redis, have we ruled out fixing the N+1 query that's causing most of the latency?"]

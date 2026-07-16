@@ -25,7 +25,6 @@ work, rather than redoing a finished subtask.
 from __future__ import annotations
 
 from agentic_patterns import Message, Provider, get_provider, scripted_tool_call
-
 from patterns.multi_agent import aggregation
 from patterns.multi_agent.state import SharedState
 from patterns.multi_agent.worker import Subtask, Worker, WorkerResult, dispatch_parallel

@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import pytest
 
+from agentic_patterns.core.config import get_embedder, get_provider
 from agentic_patterns.core.embeddings import HashEmbedder, cosine_similarity
 from agentic_patterns.core.providers import (
     Completion,
@@ -23,8 +24,6 @@ from agentic_patterns.core.providers import (
 )
 from agentic_patterns.core.tools import Tool, ToolRegistry
 from agentic_patterns.core.types import Message
-from agentic_patterns.core.config import get_embedder, get_provider
-
 
 # --- MockProvider ---------------------------------------------------------
 

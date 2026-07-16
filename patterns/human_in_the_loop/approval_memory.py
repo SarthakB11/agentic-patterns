@@ -28,7 +28,6 @@ from collections.abc import Callable
 from dataclasses import dataclass
 
 from agentic_patterns import ToolCall, ToolRegistry
-
 from patterns.human_in_the_loop.fake_tools import build_refund_registry
 from patterns.human_in_the_loop.gate import (
     AuditLog,
@@ -222,7 +221,11 @@ def run_safety_ceiling_demo() -> tuple[GateOutcome, GateOutcome, int]:
     memory = ApprovalMemory(confidence_k=1)
     decision_source = ScriptedDecisionSource([
         Decision(kind="approve", reviewer="ops-lead-dana", reason="duplicate charge confirmed in the log"),
-        Decision(kind="reject", reviewer="ops-lead-dana", reason="six thousand dollars needs a second look regardless of history"),
+        Decision(
+            kind="reject",
+            reviewer="ops-lead-dana",
+            reason="six thousand dollars needs a second look regardless of history",
+        ),
     ])
     cousin = ReviewRequest(id="req-cousin", context="duplicate charge, moderate amount", action=ToolCall(
         id="req-cousin", name="send_refund",
@@ -249,7 +252,9 @@ def run_load_falls_demo(stream_size: int = 10) -> tuple[list[GateOutcome], int]:
         [Decision(kind="approve", reviewer="ops-lead-dana", reason="standard shipping fee refund")]
     )
     outcomes = [
-        run_memory_gate(_shipping_refund(f"req-load-{i}", f"c-load-{i}", 10.00), registry, decision_source, audit_log, memory)
+        run_memory_gate(
+            _shipping_refund(f"req-load-{i}", f"c-load-{i}", 10.00), registry, decision_source, audit_log, memory
+        )
         for i in range(stream_size)
     ]
     return outcomes, len(decision_source.decisions_served)

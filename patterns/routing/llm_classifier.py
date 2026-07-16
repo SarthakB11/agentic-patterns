@@ -20,7 +20,6 @@ from __future__ import annotations
 import re
 
 from agentic_patterns import Message, Provider, get_provider
-
 from patterns.routing.registry import Route, RouteDecision, RouteRegistry
 
 DEFAULT_ROUTE = "general"
@@ -70,7 +69,9 @@ def parse_route_label(text: str, registry: RouteRegistry, *, default: str = DEFA
     )
 
 
-def classify(text: str, provider: Provider, registry: RouteRegistry = _ROUTES, *, default: str = DEFAULT_ROUTE) -> RouteDecision:
+def classify(
+    text: str, provider: Provider, registry: RouteRegistry = _ROUTES, *, default: str = DEFAULT_ROUTE
+) -> RouteDecision:
     """Ask `provider` to classify `text` and validate its reply.
 
     Args:

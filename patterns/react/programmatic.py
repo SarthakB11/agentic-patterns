@@ -13,7 +13,6 @@ is unchanged; only the script shape differs from `native_loop.demo_native`.
 from __future__ import annotations
 
 from agentic_patterns import Completion, ToolCall, get_provider
-
 from patterns.react.native_loop import NativeReactResult, build_native_registry, run_native_react
 
 PROGRAMMATIC_SYSTEM_PROMPT = (

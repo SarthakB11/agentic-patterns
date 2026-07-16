@@ -11,13 +11,12 @@ from __future__ import annotations
 import pytest
 
 from agentic_patterns import Completion, Tool, ToolCall, ToolRegistry, get_provider
-
 from patterns.react.compaction import demo_compaction, run_react_with_compaction
 from patterns.react.derailment import (
+    demo_derailment,
     detect_error_storm,
     detect_no_progress,
     detect_oscillation,
-    demo_derailment,
     run_react_with_derailment_recovery,
 )
 from patterns.react.native_loop import build_native_registry, demo_native, run_native_react
@@ -32,7 +31,6 @@ from patterns.react.tree_search import demo_tree_search, run_tree_search
 from patterns.react.verify import demo_verify, run_react_with_verification
 from patterns.react.world import build_registry
 from patterns.react.zero_shot import ZERO_SHOT_SYSTEM_PROMPT, demo_zero_shot
-
 
 # --- parser -----------------------------------------------------------------
 

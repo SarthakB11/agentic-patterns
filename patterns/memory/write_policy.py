@@ -32,7 +32,6 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from agentic_patterns import Message, Provider, get_embedder, get_provider
-
 from patterns.memory.semantic import SemanticMemory
 from patterns.memory.short_term import ShortTermMemory
 from patterns.memory.vector_store import VectorStore

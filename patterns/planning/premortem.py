@@ -30,7 +30,6 @@ import re
 from dataclasses import dataclass
 
 from agentic_patterns import Message, Provider, ToolCall, ToolRegistry, get_provider
-
 from patterns.planning.parser import parse_plan
 from patterns.planning.plan import Plan, Step, StepResult, is_error_observation, substitute_args, topological_waves
 from patterns.planning.validator import validate_plan
@@ -101,7 +100,9 @@ def _apply_constraints(step: Step, predicted: str) -> str | None:
     return None
 
 
-def simulate_plan(provider: Provider, goal: str, plan: Plan, registry: ToolRegistry) -> tuple[list[SimulatedStep], str | None]:
+def simulate_plan(
+    provider: Provider, goal: str, plan: Plan, registry: ToolRegistry
+) -> tuple[list[SimulatedStep], str | None]:
     """Predict every step's observation in dependency order, stopping at the first doomed step.
 
     Args:
@@ -154,7 +155,12 @@ def run_premortem(provider: Provider, goal: str, registry: ToolRegistry, plan: P
     state = {s.step_id: s.predicted_observation for s in trajectory}
     if doomed_id is not None:
         return PremortemResult(
-            doomed=True, doomed_step_id=doomed_id, simulated_trajectory=trajectory, state=state, executed=False, real_results=None
+            doomed=True,
+            doomed_step_id=doomed_id,
+            simulated_trajectory=trajectory,
+            state=state,
+            executed=False,
+            real_results=None,
         )
 
     results_map: dict[str, StepResult] = {}
@@ -166,7 +172,12 @@ def run_premortem(provider: Provider, goal: str, registry: ToolRegistry, plan: P
         results_map[step.id] = result
         ordered.append(result)
     return PremortemResult(
-        doomed=False, doomed_step_id=None, simulated_trajectory=trajectory, state=state, executed=True, real_results=ordered
+        doomed=False,
+        doomed_step_id=None,
+        simulated_trajectory=trajectory,
+        state=state,
+        executed=True,
+        real_results=ordered,
     )
 
 

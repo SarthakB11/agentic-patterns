@@ -29,7 +29,6 @@ import math
 from dataclasses import dataclass
 
 from agentic_patterns import Embedder, Message, Provider, get_embedder, get_provider
-
 from patterns.memory.vector_store import VectorRecord, VectorStore
 
 _ACCESS_COUNT_KEY = "access_count"
@@ -195,20 +194,26 @@ def run_forgetting_demo(provider: Provider | None = None) -> dict[str, object]:
     store.upsert("stale-note", namespace, "User once mentioned liking jazz.", embedder.embed(["jazz"])[0])
     store.upsert("active-note", namespace, "User's home airport is ORD.", embedder.embed(["ORD airport"])[0])
     now = store.clock
-    touch(store.get(namespace, "active-note"), now)  # reinforced; decays slower
+    active_note = store.get(namespace, "active-note")
+    assert active_note is not None, "just upserted above"
+    touch(active_note, now)  # reinforced; decays slower
     later = now + 20
     decay_log = sweep_decay(store, namespace, later, floor=0.05, decay_rate=0.25)
     active_note_survived_decay = store.get(namespace, "active-note") is not None
 
     # --- TTL ---
     store.upsert("promo-code", namespace, "20% off code SAVE20, valid this week.", embedder.embed(["promo"])[0])
-    set_ttl(store.get(namespace, "promo-code"), store.clock + 2)
+    promo_code = store.get(namespace, "promo-code")
+    assert promo_code is not None, "just upserted above"
+    set_ttl(promo_code, store.clock + 2)
     store.upsert("filler-1", namespace, "filler", embedder.embed(["filler one"])[0])
     store.upsert("filler-2", namespace, "filler", embedder.embed(["filler two"])[0])
     ttl_log = sweep_ttl(store, namespace, store.clock)
 
     # --- capacity bound ---
-    touch(store.get(namespace, "active-note"), store.clock)  # reinforced again; still important
+    active_note = store.get(namespace, "active-note")
+    assert active_note is not None, "still present; decay sweep left it alone"
+    touch(active_note, store.clock)  # reinforced again; still important
     for i in range(3):
         store.upsert(f"pad-{i}", namespace, f"padding item {i}", embedder.embed([f"padding {i}"])[0])
     capacity_log = enforce_capacity(store, namespace, store.clock, max_size=3)
@@ -216,10 +221,20 @@ def run_forgetting_demo(provider: Provider | None = None) -> dict[str, object]:
     active_note_survived_capacity = store.get(namespace, "active-note") is not None
 
     # --- intent-aware deletion ---
-    store.upsert("old-job-note", namespace, "User worked at Acme Corp until 2023.", embedder.embed(["Acme Corp job"])[0])
-    store.upsert("ex-employer-note", namespace, "Acme Corp's timezone was America/New_York.", embedder.embed(["Acme Corp timezone"])[0])
-    store.upsert("current-job-note", namespace, "User now works at a startup called Nimbus.", embedder.embed(["Nimbus job"])[0])
-    intent_log = intent_aware_delete(provider, embedder, store, namespace, "Forget everything about my old employer, Acme Corp.")
+    store.upsert(
+        "old-job-note", namespace, "User worked at Acme Corp until 2023.", embedder.embed(["Acme Corp job"])[0]
+    )
+    store.upsert(
+        "ex-employer-note",
+        namespace,
+        "Acme Corp's timezone was America/New_York.",
+        embedder.embed(["Acme Corp timezone"])[0],
+    )
+    store.upsert(
+        "current-job-note", namespace, "User now works at a startup called Nimbus.", embedder.embed(["Nimbus job"])[0]
+    )
+    forget_request = "Forget everything about my old employer, Acme Corp."
+    intent_log = intent_aware_delete(provider, embedder, store, namespace, forget_request)
     current_job_note_survived_intent_delete = store.get(namespace, "current-job-note") is not None
 
     return {

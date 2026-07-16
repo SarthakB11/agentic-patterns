@@ -24,7 +24,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from agentic_patterns import Embedder, cosine_similarity
-
 from patterns.rag.bm25 import tokenize
 from patterns.rag.chunking import Chunk, ScoredChunk
 

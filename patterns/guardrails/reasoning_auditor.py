@@ -29,8 +29,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from dataclasses import dataclass, field
 
-from agentic_patterns import Message, Provider, get_provider
-
+from agentic_patterns import Message, MockProvider, Provider
 from patterns.guardrails.core import DecisionLog, GuardResult, OnFail, Tripwire, run_guard
 
 AUDITOR_SYSTEM = (
@@ -156,11 +155,15 @@ def run_reasoning_auditor_demo() -> tuple[GuardResult, GuardResult, GuardResult]
         The three `GuardResult`s, in the order described above.
     """
     log = DecisionLog()
-    model_provider = get_provider(script=["hijacked"])
+    model_provider = MockProvider(script=["hijacked"])
     cases = [
         ("aligned trace", ReasoningAuditorGuard(goal=_GOAL), _ALIGNED_REASONING),
         ("keyword-hijacked trace", ReasoningAuditorGuard(goal=_GOAL), _HIJACKED_REASONING),
-        ("subtle trace, no suspect keyword", ReasoningAuditorGuard(goal=_GOAL, auditor=make_model_auditor(model_provider)), _SUBTLE_REASONING),
+        (
+            "subtle trace, no suspect keyword",
+            ReasoningAuditorGuard(goal=_GOAL, auditor=make_model_auditor(model_provider)),
+            _SUBTLE_REASONING,
+        ),
     ]
 
     print("=== Reasoning auditor: AlignmentCheck-style audit of the model's own reasoning ===")

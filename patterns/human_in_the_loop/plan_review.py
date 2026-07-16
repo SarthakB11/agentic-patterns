@@ -13,11 +13,11 @@ unexecuted, and editing replaces the whole step list before anything runs.
 
 from __future__ import annotations
 
+import contextlib
 import time
 from collections.abc import Callable
 
 from agentic_patterns import ToolCall, ToolRegistry
-
 from patterns.human_in_the_loop.fake_tools import build_support_ops_registry
 from patterns.human_in_the_loop.gate import AuditLog, AuditRecord, GateOutcome, UnauthorizedDecisionError
 
@@ -190,8 +190,6 @@ def run_plan_reject_demo() -> tuple[list, AuditLog]:
         kind="reject", reviewer="ops-lead-dana",
         reason="customer is 2 days from renewal; cancel without a refund per the no-refund-near-renewal policy",
     )
-    try:
+    with contextlib.suppress(UnauthorizedDecisionError):
         run_plan_review(steps, registry, decision, audit_log, plan_id="plan-2231")
-    except UnauthorizedDecisionError:
-        pass
     return ledger, audit_log

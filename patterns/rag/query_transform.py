@@ -14,7 +14,6 @@ to a real passage's vocabulary than the question's vocabulary is.
 from __future__ import annotations
 
 from agentic_patterns import Embedder, Message, Provider, get_embedder, get_provider
-
 from patterns.rag.assembly import assemble_context
 from patterns.rag.chunking import Chunk, ScoredChunk
 from patterns.rag.corpus import default_chunks
@@ -183,7 +182,9 @@ def run_multi_query_demo(
         embedder = get_embedder()
     if dense_index is None:
         dense_index = build_dense_index(default_chunks(), embedder)
-    sub_queries, fused = multi_query_retrieve(_MULTI_QUERY_DEMO_QUERY, dense_index, embedder, provider, top_k=2, fetch_k=2)
+    sub_queries, fused = multi_query_retrieve(
+        _MULTI_QUERY_DEMO_QUERY, dense_index, embedder, provider, top_k=2, fetch_k=2
+    )
     context_chunks = assemble_context(fused, token_budget=200)
     answer = generate_grounded_answer(_MULTI_QUERY_DEMO_QUERY, context_chunks, provider)
     return _MULTI_QUERY_DEMO_QUERY, sub_queries, context_chunks, answer

@@ -64,13 +64,15 @@ from patterns.tool_use import (
     forced_choice,
     guardrails,
     parallel,
-    schema as schema_module,
     sequential,
     single_shot,
     structured_output,
     tool_search,
     validation,
     write_action,
+)
+from patterns.tool_use import (
+    schema as schema_module,
 )
 from patterns.tool_use.catalog import build_registry
 

@@ -79,7 +79,9 @@ class FrontierPoint:
     flips_from_previous: int
 
 
-def sweep(dataset: list[tuple[str, str]], thresholds: tuple[float, ...] = DEFAULT_THRESHOLD_GRID) -> list[FrontierPoint]:
+def sweep(
+    dataset: list[tuple[str, str]], thresholds: tuple[float, ...] = DEFAULT_THRESHOLD_GRID
+) -> list[FrontierPoint]:
     """Route every row in `dataset` at each threshold in `thresholds` and score it.
 
     Args:
@@ -100,7 +102,15 @@ def sweep(dataset: list[tuple[str, str]], thresholds: tuple[float, ...] = DEFAUL
         cost = sum(router_eval.route_cost(route) for route in routes)
         strong_fraction = sum(1 for route in routes if route == "strong") / len(routes)
         flips = 0 if previous_routes is None else sum(1 for a, b in zip(routes, previous_routes) if a != b)
-        points.append(FrontierPoint(t=t, accuracy=correct / len(labels), cost=cost, strong_fraction=strong_fraction, flips_from_previous=flips))
+        points.append(
+            FrontierPoint(
+                t=t,
+                accuracy=correct / len(labels),
+                cost=cost,
+                strong_fraction=strong_fraction,
+                flips_from_previous=flips,
+            )
+        )
         previous_routes = routes
     return points
 

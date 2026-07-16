@@ -25,7 +25,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from agentic_patterns import Embedder, Message, Provider, get_embedder, get_provider
-
 from patterns.memory.vector_store import VectorStore
 from patterns.memory.write_policy import ExtractedFact, extract_facts
 
@@ -180,7 +179,8 @@ def mem0_update(
     ops: list[UpdateOp] = []
     for candidate in candidates:
         fact_text = f"{candidate.subject}: {candidate.value}"
-        ops.append(apply_candidate_fact(provider, store, embedder, namespace, fact_text, top_s=top_s, id_prefix=id_prefix))
+        op = apply_candidate_fact(provider, store, embedder, namespace, fact_text, top_s=top_s, id_prefix=id_prefix)
+        ops.append(op)
     return ops
 
 

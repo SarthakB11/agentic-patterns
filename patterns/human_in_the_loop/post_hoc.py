@@ -20,7 +20,6 @@ from collections.abc import Callable
 from dataclasses import dataclass
 
 from agentic_patterns import ToolCall, ToolRegistry
-
 from patterns.human_in_the_loop.fake_tools import build_refund_registry, build_reversal_registry
 from patterns.human_in_the_loop.gate import AuditLog, AuditRecord, UnauthorizedDecisionError
 
@@ -128,7 +127,9 @@ def apply_post_hoc_review(
     if decision.kind == "rollback":
         reversal_registry = build_reversal_registry(ledger)
         customer_id = record.action.arguments.get("customer_id", "")
-        reversal_call = ToolCall(id=f"{record.id}-reversal", name="reverse_refund", arguments={"customer_id": customer_id})
+        reversal_call = ToolCall(
+            id=f"{record.id}-reversal", name="reverse_refund", arguments={"customer_id": customer_id}
+        )
         reversal_result = reversal_registry.execute(reversal_call)
         audit_log.append(
             AuditRecord(
@@ -155,10 +156,16 @@ def run_post_hoc_confirm_demo() -> tuple[PostHocRecord, list, AuditLog]:
     audit_log = AuditLog()
     action = ToolCall(
         id="call_1", name="send_refund",
-        arguments={"customer_id": "c-1150", "amount_usd": 18.00, "reason": "chatbot-approved refund, under the $25 auto-execute threshold"},
+        arguments={
+            "customer_id": "c-1150",
+            "amount_usd": 18.00,
+            "reason": "chatbot-approved refund, under the $25 auto-execute threshold",
+        },
     )
     record = execute_immediately(action, registry, audit_log, record_id="posthoc-1150")
-    decision = PostHocDecision(kind="confirm", reviewer="ops-lead-dana", reason="matches the order and the stated reason")
+    decision = PostHocDecision(
+        kind="confirm", reviewer="ops-lead-dana", reason="matches the order and the stated reason"
+    )
     apply_post_hoc_review(record, decision, ledger, audit_log)
     return record, ledger, audit_log
 
@@ -169,7 +176,11 @@ def run_post_hoc_rollback_demo() -> tuple[PostHocRecord, list, AuditLog]:
     audit_log = AuditLog()
     action = ToolCall(
         id="call_1", name="send_refund",
-        arguments={"customer_id": "c-1151", "amount_usd": 24.00, "reason": "chatbot-approved refund, under the $25 auto-execute threshold"},
+        arguments={
+            "customer_id": "c-1151",
+            "amount_usd": 24.00,
+            "reason": "chatbot-approved refund, under the $25 auto-execute threshold",
+        },
     )
     record = execute_immediately(action, registry, audit_log, record_id="posthoc-1151")
     decision = PostHocDecision(

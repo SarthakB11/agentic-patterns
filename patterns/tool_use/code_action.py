@@ -35,8 +35,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
-from agentic_patterns import Message, Provider, ToolCall, ToolRegistry, get_provider, scripted_tool_call
-
+from agentic_patterns import Message, MockProvider, ToolCall, ToolRegistry, scripted_tool_call
 from patterns.tool_use.catalog import SYSTEM_PROMPT
 from patterns.tool_use.schema import auto_tool
 
@@ -147,7 +146,11 @@ def run_code_action_safe(registry: ToolRegistry, code: str) -> tuple[str, int]:
 
 
 def build_orders_registry() -> ToolRegistry:
-    """Build a small order-status registry with enough delayed orders to demonstrate filtering many results down to a few."""
+    """Build a small order-status registry with enough delayed orders to demonstrate filtering results.
+
+    Two of the five orders are "delayed", enough to show a code action
+    filtering many tool results down to a few in one pass.
+    """
     registry = ToolRegistry()
     statuses = {
         "ORD-2001": "shipped",
@@ -210,8 +213,13 @@ class CodeActionResult:
     round_trips: int
 
 
-def _run_one_action(registry: ToolRegistry, provider: Provider, messages: list[Message]) -> CodeActionResult:
-    """Send one user turn, run the model's scripted run_python call, and return the full outcome."""
+def _run_one_action(registry: ToolRegistry, provider: MockProvider, messages: list[Message]) -> CodeActionResult:
+    """Send one user turn, run the model's scripted run_python call, and return the full outcome.
+
+    Takes `MockProvider` rather than the general `Provider` interface
+    because it reports `provider.calls`, a scripted-transcript attribute
+    that only the mock keeps; a real provider has no such record.
+    """
     completion = provider.complete(messages, tools=[_RUN_PYTHON_SPEC], system=CODE_ACTION_SYSTEM_PROMPT)
     call = completion.tool_calls[0]
     observation, tool_calls_made = run_code_action_safe(registry, call.arguments["code"])
@@ -234,8 +242,8 @@ def demo_loop_filter() -> CodeActionResult:
         "statuses = [lookup_order_status(order_id=i) for i in ids]\n"
         "result = [s for s in statuses if 'delayed' in s]\n"
     )
-    provider = get_provider(
-        script=[
+    provider = MockProvider(
+        [
             scripted_tool_call("run_python", {"code": code}),
             "Two orders are delayed: ORD-2002 and ORD-2004.",
         ]
@@ -266,8 +274,8 @@ def demo_branch() -> CodeActionResult:
         "else:\n"
         "    result = mark_fulfilled(order_id='ORD-2002')\n"
     )
-    provider = get_provider(
-        script=[
+    provider = MockProvider(
+        [
             scripted_tool_call("run_python", {"code": code}),
             "ORD-2002 was delayed, so it has been escalated to fulfillment ops.",
         ]

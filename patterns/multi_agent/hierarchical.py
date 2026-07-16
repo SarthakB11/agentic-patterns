@@ -21,7 +21,6 @@ from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 
 from agentic_patterns import Provider, get_provider
-
 from patterns.multi_agent import aggregation
 from patterns.multi_agent.state import SharedState
 from patterns.multi_agent.worker import Subtask, Worker, WorkerResult, dispatch_parallel

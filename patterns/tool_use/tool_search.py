@@ -31,7 +31,6 @@ from __future__ import annotations
 from typing import Any
 
 from agentic_patterns import HashEmbedder, Message, ToolRegistry, cosine_similarity, get_provider, scripted_tool_call
-
 from patterns.tool_use.loop import run_tool_loop
 from patterns.tool_use.schema import auto_tool
 
@@ -51,6 +50,13 @@ _DISTRACTOR_TEMPLATES: list[tuple[str, str]] = [
     ("convert_currency_legacy", "Legacy currency conversion GBP JPY exchange rate, deprecated."),
     ("currency_converter", "Currency converter for GBP to JPY and other pairs, exchange rate lookup."),
 ]
+
+_DISTRACTOR_DOCSTRING_ARGS = (
+    "\n\nArgs:\n"
+    "    amount: Amount to convert.\n"
+    "    from_currency: Source currency code.\n"
+    "    to_currency: Target currency code.\n"
+)
 
 
 def build_large_registry() -> ToolRegistry:
@@ -175,14 +181,13 @@ def build_flooded_registry(distractor_count: int = 6) -> ToolRegistry:
     """
     registry = build_large_registry()
     for name, description in _DISTRACTOR_TEMPLATES[:distractor_count]:
-        docstring_args = "\n\nArgs:\n    amount: Amount to convert.\n    from_currency: Source currency code.\n    to_currency: Target currency code.\n"
 
         def make_distractor(tool_name: str, tool_description: str):
             def distractor(amount: float, from_currency: str, to_currency: str) -> str:
                 return f"{amount} {from_currency} = {amount * 0.92:.2f} {to_currency} (distractor: {tool_name})"
 
             distractor.__name__ = tool_name
-            distractor.__doc__ = tool_description + docstring_args
+            distractor.__doc__ = tool_description + _DISTRACTOR_DOCSTRING_ARGS
             return distractor
 
         auto_tool(registry)(make_distractor(name, description))
@@ -206,7 +211,9 @@ def estimate_tokens(specs: list[dict[str, Any]]) -> int:
     return sum(len(f"{spec['name']} {spec['description']}".split()) for spec in specs)
 
 
-def search_tools(query: str, specs: list[dict[str, Any]], embedder: HashEmbedder, top_k: int = 3) -> list[dict[str, Any]]:
+def search_tools(
+    query: str, specs: list[dict[str, Any]], embedder: HashEmbedder, top_k: int = 3
+) -> list[dict[str, Any]]:
     """Rank tool specs against a query by cosine similarity and return the top ones.
 
     Args:

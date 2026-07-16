@@ -39,7 +39,6 @@ from dataclasses import dataclass
 from typing import Any
 
 from agentic_patterns import Message, Provider
-
 from patterns.guardrails.core import DecisionLog, Guard, OnFail, run_guard
 
 

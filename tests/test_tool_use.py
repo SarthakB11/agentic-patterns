@@ -16,7 +16,6 @@ from agentic_patterns import (
     get_provider,
     scripted_tool_call,
 )
-
 from patterns.tool_use import (
     code_action,
     code_execution,
@@ -36,7 +35,6 @@ from patterns.tool_use import (
 from patterns.tool_use.catalog import SYSTEM_PROMPT, build_registry
 from patterns.tool_use.loop import run_tool_loop, validate_arguments
 from patterns.tool_use.schema import auto_tool, schema_from_function
-
 
 # --- validate_arguments edge cases -----------------------------------------
 

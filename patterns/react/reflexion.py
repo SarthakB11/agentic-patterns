@@ -12,7 +12,6 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 from agentic_patterns import Message, Provider, ToolRegistry, get_provider
-
 from patterns.react.text_loop import FEW_SHOT_SYSTEM_PROMPT, ReactResult, run_react
 from patterns.react.world import build_registry
 

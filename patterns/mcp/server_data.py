@@ -22,7 +22,9 @@ if TYPE_CHECKING:
 
 NOTES: dict[str, str] = {"todo": "Buy milk. Call Grandma. Finish the MCP demo before Friday."}
 
-ToolHandler = Callable[[dict[str, Any], "ServerState", "StdioServerTransport | None"], tuple[list[dict[str, Any]], bool]]
+ToolHandler = Callable[
+    [dict[str, Any], "ServerState", "StdioServerTransport | None"], tuple[list[dict[str, Any]], bool]
+]
 
 
 @dataclass
@@ -38,7 +40,9 @@ class ToolDef:
         return {"name": self.name, "description": self.description, "inputSchema": self.input_schema}
 
 
-def _handle_add(arguments: dict[str, Any], state: "ServerState", transport: "StdioServerTransport | None") -> tuple[list[dict[str, Any]], bool]:
+def _handle_add(
+    arguments: dict[str, Any], state: ServerState, transport: StdioServerTransport | None
+) -> tuple[list[dict[str, Any]], bool]:
     try:
         result = arguments["a"] + arguments["b"]
     except (KeyError, TypeError) as exc:
@@ -46,7 +50,9 @@ def _handle_add(arguments: dict[str, Any], state: "ServerState", transport: "Std
     return [{"type": "text", "text": str(result)}], False
 
 
-def _handle_divide(arguments: dict[str, Any], state: "ServerState", transport: "StdioServerTransport | None") -> tuple[list[dict[str, Any]], bool]:
+def _handle_divide(
+    arguments: dict[str, Any], state: ServerState, transport: StdioServerTransport | None
+) -> tuple[list[dict[str, Any]], bool]:
     try:
         a, b = arguments["a"], arguments["b"]
     except KeyError as exc:
@@ -56,7 +62,9 @@ def _handle_divide(arguments: dict[str, Any], state: "ServerState", transport: "
     return [{"type": "text", "text": str(a / b)}], False
 
 
-def _await_matching_response(transport: "StdioServerTransport", request_id: str, max_messages: int = 10) -> dict[str, Any] | None:
+def _await_matching_response(
+    transport: StdioServerTransport, request_id: str, max_messages: int = 10
+) -> dict[str, Any] | None:
     """Block-read from the client until a response with `request_id` arrives."""
     for _ in range(max_messages):
         message = transport.read_message()
@@ -67,7 +75,9 @@ def _await_matching_response(transport: "StdioServerTransport", request_id: str,
     return None
 
 
-def _handle_summarize_note(arguments: dict[str, Any], state: "ServerState", transport: "StdioServerTransport | None") -> tuple[list[dict[str, Any]], bool]:
+def _handle_summarize_note(
+    arguments: dict[str, Any], state: ServerState, transport: StdioServerTransport | None
+) -> tuple[list[dict[str, Any]], bool]:
     if "sampling" not in state.client_capabilities:
         return [{"type": "text", "text": "client did not offer the sampling capability; cannot summarize"}], True
     note_text = NOTES.get(arguments.get("note_id", ""))
@@ -76,13 +86,12 @@ def _handle_summarize_note(arguments: dict[str, Any], state: "ServerState", tran
     if transport is None:
         return [{"type": "text", "text": "sampling needs a duplex transport; unavailable over this connection"}], True
 
+    summarize_prompt = f"Summarize this note in one short sentence: {note_text}"
     request = jsonrpc.build_request(
         state.new_request_id(),
         "sampling/createMessage",
         {
-            "messages": [
-                {"role": "user", "content": {"type": "text", "text": f"Summarize this note in one short sentence: {note_text}"}}
-            ],
+            "messages": [{"role": "user", "content": {"type": "text", "text": summarize_prompt}}],
             "maxTokens": 200,
         },
     )
@@ -93,17 +102,23 @@ def _handle_summarize_note(arguments: dict[str, Any], state: "ServerState", tran
     return [reply["result"]["content"]], False
 
 
+_TWO_NUMBER_SCHEMA: dict[str, Any] = {
+    "type": "object",
+    "properties": {"a": {"type": "number"}, "b": {"type": "number"}},
+    "required": ["a", "b"],
+}
+
 TOOLS: dict[str, ToolDef] = {
     "add": ToolDef(
         name="add",
         description="Add two numbers and return the sum.",
-        input_schema={"type": "object", "properties": {"a": {"type": "number"}, "b": {"type": "number"}}, "required": ["a", "b"]},
+        input_schema=_TWO_NUMBER_SCHEMA,
         handler=_handle_add,
     ),
     "divide": ToolDef(
         name="divide",
         description="Divide a by b and return the quotient.",
-        input_schema={"type": "object", "properties": {"a": {"type": "number"}, "b": {"type": "number"}}, "required": ["a", "b"]},
+        input_schema=_TWO_NUMBER_SCHEMA,
         handler=_handle_divide,
     ),
     "summarize_note": ToolDef(
@@ -123,7 +138,9 @@ PROMPT_LIST: list[dict[str, Any]] = [
     {
         "name": "summarize_notes",
         "description": "Summarize the todo notes for a status update.",
-        "arguments": [{"name": "tone", "description": "Tone of the summary, e.g. 'formal' or 'casual'.", "required": False}],
+        "arguments": [
+            {"name": "tone", "description": "Tone of the summary, e.g. 'formal' or 'casual'.", "required": False}
+        ],
     }
 ]
 

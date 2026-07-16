@@ -30,7 +30,6 @@ from __future__ import annotations
 import re
 
 from agentic_patterns import Message, Provider, get_provider
-
 from patterns.routing.escalation import EscalationPolicy, is_sensitive
 from patterns.routing.registry import RouteDecision
 

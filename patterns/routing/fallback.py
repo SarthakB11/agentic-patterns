@@ -20,7 +20,6 @@ from collections.abc import Callable
 from dataclasses import dataclass
 
 from agentic_patterns import Message, Provider
-
 from patterns.routing.registry import RouteDecision
 
 _REFUSAL_MARKERS = ("i can't help with that", "i cannot assist", "i'm not able to help")
@@ -44,7 +43,9 @@ class FallbackHandler:
     call: Callable[[], str]
 
 
-def make_provider_handler(name: str, provider: Provider, question: str, *, system: str | None = None) -> FallbackHandler:
+def make_provider_handler(
+    name: str, provider: Provider, question: str, *, system: str | None = None
+) -> FallbackHandler:
     """Build a `FallbackHandler` backed by a `Provider.complete()` call.
 
     Converts a refusal-shaped reply (one starting with a phrase in

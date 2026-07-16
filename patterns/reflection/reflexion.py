@@ -22,7 +22,6 @@ from __future__ import annotations
 import re
 
 from agentic_patterns import Message, Provider, get_provider
-
 from patterns.reflection.loop import Critique, ReflectionResult, run_reflection_loop
 
 _TASK = (

@@ -38,7 +38,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from agentic_patterns import Message, MockProvider, Provider
-
 from patterns.multi_agent.state import SharedState, TraceEntry
 
 CATEGORY_SPECIFICATION = "specification"
@@ -171,7 +170,9 @@ def attribute_all_at_once(provider: Provider, goal: str, steps: list[TraceEntry]
     if not agent or not step_text or not mode_id:
         raise ValueError(f"malformed all-at-once verdict: {completion.content!r}")
     mode = _resolve_mode(mode_id)
-    return Attribution(agent=agent, step=int(step_text), mode_id=mode.id, category=mode.category, strategy="all_at_once")
+    return Attribution(
+        agent=agent, step=int(step_text), mode_id=mode.id, category=mode.category, strategy="all_at_once"
+    )
 
 
 def attribute_step_by_step(provider: Provider, goal: str, steps: list[TraceEntry]) -> Attribution:
@@ -193,7 +194,9 @@ def attribute_step_by_step(provider: Provider, goal: str, steps: list[TraceEntry
             continue
         if verdict == "YES":
             mode = _resolve_mode(_field(lines, "MODE"))
-            return Attribution(agent=step.actor, step=step.seq, mode_id=mode.id, category=mode.category, strategy="step_by_step")
+            return Attribution(
+                agent=step.actor, step=step.seq, mode_id=mode.id, category=mode.category, strategy="step_by_step"
+            )
         raise ValueError(f"malformed step-by-step verdict: {completion.content!r}")
     raise ValueError("step-by-step attribution scanned every step without a decisive verdict")
 
@@ -227,7 +230,9 @@ def attribute_binary_search(provider: Provider, goal: str, steps: list[TraceEntr
         raise ValueError("binary-search attribution converged without ever receiving a MODE")
     mode = _resolve_mode(last_mode_id)
     decisive = steps[lo]
-    return Attribution(agent=decisive.actor, step=decisive.seq, mode_id=mode.id, category=mode.category, strategy="binary_search")
+    return Attribution(
+        agent=decisive.actor, step=decisive.seq, mode_id=mode.id, category=mode.category, strategy="binary_search"
+    )
 
 
 # --- demo ----------------------------------------------------------------
@@ -264,8 +269,16 @@ def run_failure_attribution_demo() -> dict[str, Attribution]:
         "revise",
         "Billing structures vary by practice area, with contingency fees common in litigation.",
     )
-    state.record("risk_analyst", "produce", "Obsidian's no-lock-in model is the single biggest risk to our retention plan.")
-    state.record("supervisor", "synthesize", "Combined findings into a final report, including the market_researcher's billing-rate notes.")
+    state.record(
+        "risk_analyst",
+        "produce",
+        "Obsidian's no-lock-in model is the single biggest risk to our retention plan.",
+    )
+    state.record(
+        "supervisor",
+        "synthesize",
+        "Combined findings into a final report, including the market_researcher's billing-rate notes.",
+    )
 
     steps = trace_steps(state)
     all_at_once = attribute_all_at_once(

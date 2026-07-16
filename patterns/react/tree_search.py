@@ -23,10 +23,9 @@ left out.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 from agentic_patterns import Message, Provider, ToolRegistry, get_provider
-
 from patterns.react.native_loop import build_native_registry
 from patterns.react.scratchpad import Step
 
@@ -168,7 +167,9 @@ def run_tree_search(
             observation = tools.execute(call)
             step = Step(completion.content, call.name, str(call.arguments), observation=observation)
             terminal = call.name == "finish"
-            child = TreeNode(next_id, [*node.trajectory, step], terminal=terminal, answer=observation if terminal else None)
+            child = TreeNode(
+                next_id, [*node.trajectory, step], terminal=terminal, answer=observation if terminal else None
+            )
             next_id += 1
             tree.append(child)
             children.append(child)

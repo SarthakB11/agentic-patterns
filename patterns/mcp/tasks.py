@@ -51,7 +51,9 @@ from typing import Any
 from patterns.mcp import jsonrpc
 from patterns.mcp.client import MCPProtocolError
 
-TASKS_SERVER_CAPABILITY: dict[str, Any] = {"tasks": {"requests": {"tools": {"call": True}}, "list": True, "cancel": True}}
+TASKS_SERVER_CAPABILITY: dict[str, Any] = {
+    "tasks": {"requests": {"tools": {"call": True}}, "list": True, "cancel": True}
+}
 
 _TERMINAL_STATUSES = {"completed", "failed", "cancelled"}
 
@@ -79,7 +81,11 @@ _TASK_TOOLS: dict[str, dict[str, Any]] = {
         "spec": {
             "name": "slow_add",
             "description": "Add two numbers. Modeled as slow enough that a caller may run it as a task.",
-            "inputSchema": {"type": "object", "properties": {"a": {"type": "number"}, "b": {"type": "number"}}, "required": ["a", "b"]},
+            "inputSchema": {
+                "type": "object",
+                "properties": {"a": {"type": "number"}, "b": {"type": "number"}},
+                "required": ["a", "b"],
+            },
             "execution": {"taskSupport": "optional"},
         },
         "run": _run_slow_add,
@@ -146,7 +152,10 @@ class TaskServer:
         params = message.get("params", {}) or {}
 
         if method == "tools/list":
-            return jsonrpc.build_response(msg_id, {"tools": [entry["spec"] for entry in _TASK_TOOLS.values()]})
+            # `message["id"]`, not `msg_id`: reached only on the request path
+            # (methods below are the last handled branch before the
+            # notification/unknown-method fallthrough), so `id` is present.
+            return jsonrpc.build_response(message["id"], {"tools": [entry["spec"] for entry in _TASK_TOOLS.values()]})
         if method == "tools/call":
             return self._handle_tools_call(msg_id, params)
         if method == "tasks/get":
@@ -156,13 +165,15 @@ class TaskServer:
         if method == "tasks/cancel":
             return self._handle_tasks_cancel(msg_id, params)
         if method == "tasks/list":
-            return jsonrpc.build_response(msg_id, {"tasks": [self._task_view(t) for t in self._tasks.values()]})
+            return jsonrpc.build_response(message["id"], {"tasks": [self._task_view(t) for t in self._tasks.values()]})
         if is_notification:
             return None
         return jsonrpc.build_error(msg_id, jsonrpc.METHOD_NOT_FOUND, f"unknown method: {method!r}")
 
     def _handle_tools_call(self, msg_id: Any, params: dict[str, Any]) -> dict[str, Any]:
         name = params.get("name")
+        if not isinstance(name, str):
+            return jsonrpc.build_error(msg_id, jsonrpc.METHOD_NOT_FOUND, f"unknown tool: {name!r}")
         entry = _TASK_TOOLS.get(name)
         if entry is None:
             return jsonrpc.build_error(msg_id, jsonrpc.METHOD_NOT_FOUND, f"unknown tool: {name!r}")
@@ -200,30 +211,48 @@ class TaskServer:
             record.status = "failed" if is_error else "completed"
             record.result = {"content": content, "isError": is_error}
 
+    def _lookup_task(self, params: dict[str, Any]) -> TaskRecord | None:
+        """Look up `params["taskId"]`, tolerating a missing or non-string value as simply unknown."""
+        task_id = params.get("taskId")
+        if not isinstance(task_id, str):
+            return None
+        return self._tasks.get(task_id)
+
     def _handle_tasks_get(self, msg_id: Any, params: dict[str, Any]) -> dict[str, Any]:
-        record = self._tasks.get(params.get("taskId"))
+        record = self._lookup_task(params)
         if record is None:
             return jsonrpc.build_error(msg_id, jsonrpc.INVALID_PARAMS, f"unknown taskId: {params.get('taskId')!r}")
         self._advance(record)
         return jsonrpc.build_response(msg_id, {"task": self._task_view(record)})
 
     def _handle_tasks_result(self, msg_id: Any, params: dict[str, Any]) -> dict[str, Any]:
-        record = self._tasks.get(params.get("taskId"))
+        record = self._lookup_task(params)
         if record is None:
             return jsonrpc.build_error(msg_id, jsonrpc.INVALID_PARAMS, f"unknown taskId: {params.get('taskId')!r}")
         if record.status not in _TERMINAL_STATUSES:
-            return jsonrpc.build_error(msg_id, jsonrpc.INVALID_PARAMS, f"task {record.task_id!r} has not reached a terminal status yet: {record.status!r}")
+            return jsonrpc.build_error(
+                msg_id,
+                jsonrpc.INVALID_PARAMS,
+                f"task {record.task_id!r} has not reached a terminal status yet: {record.status!r}",
+            )
         return jsonrpc.build_response(msg_id, record.result)
 
     def _handle_tasks_cancel(self, msg_id: Any, params: dict[str, Any]) -> dict[str, Any]:
-        record = self._tasks.get(params.get("taskId"))
+        record = self._lookup_task(params)
         if record is None:
             return jsonrpc.build_error(msg_id, jsonrpc.INVALID_PARAMS, f"unknown taskId: {params.get('taskId')!r}")
         if record.status in _TERMINAL_STATUSES:
-            return jsonrpc.build_error(msg_id, jsonrpc.INVALID_PARAMS, f"task {record.task_id!r} is already terminal ({record.status!r}); cannot cancel")
+            return jsonrpc.build_error(
+                msg_id,
+                jsonrpc.INVALID_PARAMS,
+                f"task {record.task_id!r} is already terminal ({record.status!r}); cannot cancel",
+            )
         record.status = "cancelled"
         record.updated_tick = self._now()
-        record.result = {"content": [{"type": "text", "text": f"task {record.task_id!r} was cancelled"}], "isError": True}
+        record.result = {
+            "content": [{"type": "text", "text": f"task {record.task_id!r} was cancelled"}],
+            "isError": True,
+        }
         return jsonrpc.build_response(msg_id, {"task": self._task_view(record)})
 
     def _task_view(self, record: TaskRecord) -> dict[str, Any]:

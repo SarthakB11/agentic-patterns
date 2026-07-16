@@ -31,7 +31,6 @@ from collections.abc import Callable
 from dataclasses import dataclass
 
 from agentic_patterns import Message, MockProvider, Provider, ToolCall, ToolRegistry
-
 from patterns.human_in_the_loop.fake_tools import build_extended_ops_registry
 from patterns.human_in_the_loop.gate import (
     AuditLog,
@@ -172,7 +171,8 @@ def run_risk_classified_gate(
         decision_kind = "auto_approved_rule_never_gate" if verdict.route == "never_gate" else "auto_approved_by_judge"
         reviewer = "risk_classifier" if verdict.route == "never_gate" else "risk_classifier_judge"
         audit_log.append(AuditRecord(
-            request.id, action.name, action.arguments, decision_kind, action.arguments, reviewer, verdict.reason, now, now,
+            request.id, action.name, action.arguments, decision_kind,
+            action.arguments, reviewer, verdict.reason, now, now,
         ))
         return GateOutcome(kind="executed", tool_result=result, final_arguments=action.arguments)
 
@@ -198,8 +198,14 @@ class RiskClassifierDemoResult:
     ledger: list
 
 
-def run_risk_classifier_demo(provider: Provider | None = None) -> RiskClassifierDemoResult:
-    """Five actions: three resolved by rule, two ambiguous ones routed to a judge."""
+def run_risk_classifier_demo(provider: MockProvider | None = None) -> RiskClassifierDemoResult:
+    """Five actions: three resolved by rule, two ambiguous ones routed to a judge.
+
+    Takes a `MockProvider` rather than the general `Provider` interface
+    because this demo reports `judge_calls_made` off the mock's scripted
+    call transcript, which only `MockProvider` records; a real provider
+    has no such record.
+    """
     registry, ledger = build_extended_ops_registry()
     audit_log = AuditLog()
     clock = counting_clock()
@@ -217,13 +223,18 @@ def run_risk_classifier_demo(provider: Provider | None = None) -> RiskClassifier
         ("always_gate", "cancel_subscription", {"customer_id": "c-01", "reason": "customer requested cancellation"}),
         ("never_gate", "lookup_customer_tier", {"customer_id": "c-02"}),
         ("trivial", "send_refund", {"customer_id": "c-03", "amount_usd": 5.00, "reason": "shipping label reprint fee"}),
-        ("judge_gate", "send_refund", {"customer_id": "c-04", "amount_usd": 300.00, "reason": "possible duplicate charge, unclear"}),
+        (
+            "judge_gate", "send_refund",
+            {"customer_id": "c-04", "amount_usd": 300.00, "reason": "possible duplicate charge, unclear"},
+        ),
         ("judge_auto", "send_refund", {"customer_id": "c-05", "amount_usd": 150.00, "reason": "coupon applied twice"}),
     ]
     outcomes: dict[str, GateOutcome] = {}
     for name, tool_name, args in scenarios:
-        request = ReviewRequest(id=f"req-{name}", action=ToolCall(id=f"req-{name}", name=tool_name, arguments=args), context=name)
+        request = ReviewRequest(
+            id=f"req-{name}", action=ToolCall(id=f"req-{name}", name=tool_name, arguments=args), context=name
+        )
         outcomes[name] = run_risk_classified_gate(request, registry, provider, decision_source, audit_log, clock=clock)
 
-    judge_calls_made = len(provider.calls) if hasattr(provider, "calls") else -1
+    judge_calls_made = len(provider.calls)
     return RiskClassifierDemoResult(outcomes=outcomes, judge_calls_made=judge_calls_made, ledger=ledger)

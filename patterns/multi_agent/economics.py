@@ -32,7 +32,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from agentic_patterns import Completion, Message, Provider, get_provider, scripted_tool_call
-
 from patterns.multi_agent import aggregation, supervisor
 from patterns.multi_agent.worker import Subtask, Worker, dispatch_parallel
 
@@ -79,8 +78,12 @@ class TrackedProvider(Provider):
         self, messages: list[Message], *, tools: list[dict] | None = None, system: str | None = None,
         temperature: float = 0.0, max_tokens: int = 1024,
     ) -> Completion:
-        completion = self._inner.complete(messages, tools=tools, system=system, temperature=temperature, max_tokens=max_tokens)
-        self.calls.append(CallTally(_approx_tokens(_render_input(messages, tools, system)), _approx_tokens(completion.content)))
+        completion = self._inner.complete(
+            messages, tools=tools, system=system, temperature=temperature, max_tokens=max_tokens
+        )
+        input_tokens = _approx_tokens(_render_input(messages, tools, system))
+        output_tokens = _approx_tokens(completion.content)
+        self.calls.append(CallTally(input_tokens, output_tokens))
         return completion
 
 
@@ -145,7 +148,8 @@ def run_single_threaded(task: str, provider: Provider) -> tuple[str, TrackedProv
     tracked = TrackedProvider(provider)
     transcript = f"Goal: {task}"
     for section in ("market positioning", "technical differentiation", "competitive risk"):
-        completion = tracked.complete([Message.user(f"{transcript}\n\nNow research: {section}.")], system=SINGLE_THREADED_SYSTEM)
+        prompt = f"{transcript}\n\nNow research: {section}."
+        completion = tracked.complete([Message.user(prompt)], system=SINGLE_THREADED_SYSTEM)
         transcript += f"\n\n[{section}]\n{completion.content}"
     completion = tracked.complete(
         [Message.user(f"{transcript}\n\nNow write the final one-page report synthesizing everything above.")],
@@ -172,7 +176,9 @@ def run_supervised(task: str) -> tuple[str, TrackedProvider, dict[str, TrackedPr
     Reuses `supervisor.decompose`, `worker.dispatch_parallel`, and
     `aggregation.model_synthesize` so this measures the real mechanism.
     """
-    subtask_args = [{"id": sid, "role": role, "objective": obj, "output_format": fmt} for sid, role, obj, fmt in _SUBTASK_SPECS]
+    subtask_args = [
+        {"id": sid, "role": role, "objective": obj, "output_format": fmt} for sid, role, obj, fmt in _SUBTASK_SPECS
+    ]
     synthesis = (
         "Notion ($10/mo) and Evernote ($15/mo) both require network sync and lock content into "
         "proprietary formats, while Obsidian's one-time $50 price and local markdown storage "
@@ -191,11 +197,15 @@ def run_supervised(task: str) -> tuple[str, TrackedProvider, dict[str, TrackedPr
         assignments.append((Worker(subtask.role, f"You are a {subtask.role}.", tracked), subtask))
 
     results = dispatch_parallel(assignments)
-    final_report = aggregation.model_synthesize(supervisor_tracked, results, goal=task, system=supervisor.SYNTHESIS_SYSTEM)
+    final_report = aggregation.model_synthesize(
+        supervisor_tracked, results, goal=task, system=supervisor.SYNTHESIS_SYSTEM
+    )
     return final_report, supervisor_tracked, worker_trackeds
 
 
-def compute_report(single: TrackedProvider, sup: TrackedProvider, workers: dict[str, TrackedProvider]) -> EconomicsReport:
+def compute_report(
+    single: TrackedProvider, sup: TrackedProvider, workers: dict[str, TrackedProvider]
+) -> EconomicsReport:
     """Tally both paths' `TrackedProvider`s into one `EconomicsReport`."""
     single_acc, sup_acc = account(single), account(sup)
     worker_accs = {sid: account(t) for sid, t in workers.items()}

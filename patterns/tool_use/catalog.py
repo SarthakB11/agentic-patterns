@@ -10,7 +10,6 @@ example of schema autogeneration alongside the dedicated `schema.py` demo.
 from __future__ import annotations
 
 from agentic_patterns import ToolRegistry
-
 from patterns.tool_use.schema import auto_tool
 
 SYSTEM_PROMPT = (

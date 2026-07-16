@@ -32,7 +32,6 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from agentic_patterns import Completion, Message, Provider, ToolCall, get_provider, scripted_tool_call
-
 from patterns.human_in_the_loop.fake_tools import build_refund_registry
 from patterns.human_in_the_loop.gate import (
     AuditLog,

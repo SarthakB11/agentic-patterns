@@ -21,7 +21,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from agentic_patterns import Embedder, cosine_similarity, get_embedder
-
 from patterns.memory.vector_store import ScoredRecord, VectorStore
 
 

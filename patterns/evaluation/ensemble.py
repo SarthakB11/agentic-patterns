@@ -18,7 +18,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from agentic_patterns import Provider, get_provider
-
 from patterns.evaluation.eval_set import EvalCase, get_case
 from patterns.evaluation.pointwise import build_pointwise_judge
 from patterns.evaluation.verdict import Verdict

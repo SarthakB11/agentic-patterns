@@ -57,7 +57,9 @@ class ServerState:
         return f"srv-{self.next_request_id}"
 
 
-def handle_message(state: ServerState, message: dict[str, Any], transport: StdioServerTransport | None = None) -> dict[str, Any] | None:
+def handle_message(
+    state: ServerState, message: dict[str, Any], transport: StdioServerTransport | None = None
+) -> dict[str, Any] | None:
     """Dispatch one decoded JSON-RPC message and return the response, if any.
 
     Returns `None` for notifications, which never get a reply. Enforces
@@ -78,7 +80,10 @@ def handle_message(state: ServerState, message: dict[str, Any], transport: Stdio
             "capabilities": SERVER_CAPABILITIES,
             "serverInfo": {"name": "agentic-patterns-mcp-server", "version": "0.1.0"},
         }
-        return jsonrpc.build_response(msg_id, result)
+        # `message["id"]`, not `msg_id`: this line is only reached when
+        # `method == "initialize"` on a request, which by the JSON-RPC shape
+        # (checked in jsonrpc.decode_line/is_request) always carries `id`.
+        return jsonrpc.build_response(message["id"], result)
 
     if method == "notifications/initialized":
         state.ready = True
@@ -90,7 +95,7 @@ def handle_message(state: ServerState, message: dict[str, Any], transport: Stdio
         return jsonrpc.build_error(msg_id, jsonrpc.INVALID_REQUEST, "server not initialized: call initialize first")
 
     if method == "tools/list":
-        return jsonrpc.build_response(msg_id, {"tools": [t.spec() for t in server_data.TOOLS.values()]})
+        return jsonrpc.build_response(message["id"], {"tools": [t.spec() for t in server_data.TOOLS.values()]})
 
     if method == "tools/call":
         params = message.get("params", {})
@@ -99,10 +104,10 @@ def handle_message(state: ServerState, message: dict[str, Any], transport: Stdio
         if tool is None:
             return jsonrpc.build_error(msg_id, jsonrpc.METHOD_NOT_FOUND, f"unknown tool: {name!r}")
         content, is_error = tool.handler(params.get("arguments", {}), state, transport)
-        return jsonrpc.build_response(msg_id, {"content": content, "isError": is_error})
+        return jsonrpc.build_response(message["id"], {"content": content, "isError": is_error})
 
     if method == "resources/list":
-        return jsonrpc.build_response(msg_id, {"resources": server_data.RESOURCE_LIST})
+        return jsonrpc.build_response(message["id"], {"resources": server_data.RESOURCE_LIST})
 
     if method == "resources/read":
         uri = message.get("params", {}).get("uri", "")
@@ -110,10 +115,10 @@ def handle_message(state: ServerState, message: dict[str, Any], transport: Stdio
             contents = server_data.read_resource(uri)
         except KeyError:
             return jsonrpc.build_error(msg_id, jsonrpc.RESOURCE_NOT_FOUND, f"resource not found: {uri}")
-        return jsonrpc.build_response(msg_id, {"contents": contents})
+        return jsonrpc.build_response(message["id"], {"contents": contents})
 
     if method == "prompts/list":
-        return jsonrpc.build_response(msg_id, {"prompts": server_data.PROMPT_LIST})
+        return jsonrpc.build_response(message["id"], {"prompts": server_data.PROMPT_LIST})
 
     if method == "prompts/get":
         params = message.get("params", {})
@@ -121,7 +126,7 @@ def handle_message(state: ServerState, message: dict[str, Any], transport: Stdio
             result = server_data.get_prompt(params.get("name", ""), params.get("arguments", {}))
         except KeyError:
             return jsonrpc.build_error(msg_id, jsonrpc.INVALID_PARAMS, f"unknown prompt: {params.get('name')!r}")
-        return jsonrpc.build_response(msg_id, result)
+        return jsonrpc.build_response(message["id"], result)
 
     if is_notification:
         return None

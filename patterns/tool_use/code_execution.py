@@ -25,8 +25,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from agentic_patterns import Message, ToolCall, ToolRegistry, get_provider, scripted_tool_call
-
+from agentic_patterns import Message, MockProvider, ToolCall, ToolRegistry, scripted_tool_call
 from patterns.tool_use.catalog import SYSTEM_PROMPT, build_registry
 
 PROGRAM_SYSTEM_PROMPT = (
@@ -103,8 +102,8 @@ def demo_code_execution() -> dict[str, str]:
     one to read its summarized result and answer.
     """
     registry = build_registry()
-    provider = get_provider(
-        script=[
+    provider = MockProvider(
+        [
             scripted_tool_call(
                 "run_program",
                 {
@@ -139,7 +138,10 @@ def demo_code_execution() -> dict[str, str]:
     print(f"  program: {len(program_call.arguments['steps'])} steps run locally, no round trip between them")
     print(f"  step results: {results}")
     print(f"final: {final.content}")
-    print(f"model round trips used: {len(provider.calls)} (vs 3 for the equivalent per-call loop in sequential.py)")
+    print(
+        f"model round trips used: {len(provider.calls)} "
+        "(vs 3 for the equivalent per-call loop in sequential.py)"
+    )
     print()
     return results
 

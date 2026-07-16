@@ -28,7 +28,6 @@ import re
 from dataclasses import dataclass, field
 
 from agentic_patterns import Message, Provider, ToolCall, ToolRegistry, get_provider
-
 from patterns.planning.parser import parse_plan
 from patterns.planning.plan import Plan, Step, StepResult, is_error_observation, substitute_args, topological_waves
 from patterns.planning.validator import validate_plan
@@ -205,7 +204,9 @@ def run_plan_repair(provider: Provider, goal: str, registry: ToolRegistry, max_r
         repair_completion = provider.complete([Message.user(prompt)], system=REPAIRER_SYSTEM)
         repair_plan = parse_plan(goal, repair_completion.content)
         if repair_plan.step_ids() != blast_radius:
-            raise RepairScopeError(f"Repairer must cover exactly {sorted(blast_radius)}, got {sorted(repair_plan.step_ids())}")
+            raise RepairScopeError(
+                f"Repairer must cover exactly {sorted(blast_radius)}, got {sorted(repair_plan.step_ids())}"
+            )
 
         spliced_plan = Plan(goal=goal, steps=preserved_steps + repair_plan.steps)
         validate_plan(spliced_plan, registry)
@@ -214,7 +215,13 @@ def run_plan_repair(provider: Provider, goal: str, registry: ToolRegistry, max_r
             results.pop(step_id, None)
 
     preserved_ids = current_plan.step_ids() - repaired_ids
-    return RepairRun(plan=current_plan, results=results, repairs=repairs, preserved_ids=preserved_ids, repaired_ids=repaired_ids)
+    return RepairRun(
+        plan=current_plan,
+        results=results,
+        repairs=repairs,
+        preserved_ids=preserved_ids,
+        repaired_ids=repaired_ids,
+    )
 
 
 def demo() -> None:

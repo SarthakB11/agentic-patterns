@@ -18,9 +18,8 @@ whether the write action proceeds.
 from __future__ import annotations
 
 from agentic_patterns import Message, ToolRegistry, get_provider, scripted_tool_call
-
-from patterns.tool_use.schema import auto_tool
 from patterns.tool_use.loop import ToolLoopResult, run_tool_loop
+from patterns.tool_use.schema import auto_tool
 
 SYSTEM_PROMPT = (
     "You are an ops assistant. send_refund_email is a write action: it must "

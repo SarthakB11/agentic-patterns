@@ -11,7 +11,6 @@ a stable, deterministic order.
 from __future__ import annotations
 
 from agentic_patterns import Completion, Message, ToolCall, get_provider
-
 from patterns.tool_use.catalog import SYSTEM_PROMPT, build_registry
 from patterns.tool_use.loop import ToolLoopResult, run_tool_loop
 

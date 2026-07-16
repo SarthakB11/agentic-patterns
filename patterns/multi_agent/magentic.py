@@ -31,7 +31,6 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 from agentic_patterns import Message, MockProvider, Provider
-
 from patterns.multi_agent.worker import Subtask, Worker, run_worker
 
 FALLBACK_MESSAGE = "Stopped: replan budget exhausted without the progress ledger reporting done."
@@ -141,7 +140,13 @@ def _build_task_ledger(provider: Provider, goal: str) -> TaskLedger:
 
 
 def _render_ledger(ledger: TaskLedger, transcript: list[str]) -> str:
-    lines = [f"Goal: {ledger.goal}", "Facts:", *[f"- {f}" for f in ledger.facts], "Plan:", *[f"- {p}" for p in ledger.plan]]
+    lines = [
+        f"Goal: {ledger.goal}",
+        "Facts:",
+        *[f"- {f}" for f in ledger.facts],
+        "Plan:",
+        *[f"- {p}" for p in ledger.plan],
+    ]
     lines.append("Transcript so far:")
     lines.extend(transcript or ["(none yet)"])
     return "\n".join(lines)
@@ -202,7 +207,9 @@ def run_magentic(
                 return MagenticResult(progress.next_instruction, replans, "completed", ledger, list(transcript))
             if progress.next_agent not in agents:
                 raise ValueError(f"progress ledger named an unknown agent: {progress.next_agent!r}")
-            subtask = Subtask(f"step-{len(transcript) + 1}", progress.next_agent, progress.next_instruction, "free text")
+            subtask = Subtask(
+                f"step-{len(transcript) + 1}", progress.next_agent, progress.next_instruction, "free text"
+            )
             result = run_worker(agents[progress.next_agent], subtask)
             action_key = f"{progress.next_agent}:{result.content}"
             transcript.append(f"{progress.next_agent}: {result.content}")
@@ -237,8 +244,10 @@ def run_magentic_demo() -> MagenticResult:
             "FACTS:\n- The design review is at 3pm today\n- Neither Room A nor Room B is booked at 3pm\n"
             "GUESSES:\n- The booking is likely in the calendar system's room field, not a manual room list\n"
             "PLAN:\n- Ask calendar_bot for the room field on the 3pm design review event",
-            "DONE: no\nPROGRESS: yes\nNEXT_AGENT: calendar_bot\nNEXT_INSTRUCTION: Look up the room field for the 3pm design review event",
-            "DONE: yes\nPROGRESS: yes\nNEXT_AGENT: calendar_bot\nNEXT_INSTRUCTION: Room C (Innovation Lab) is booked for the 3pm design review.",
+            "DONE: no\nPROGRESS: yes\nNEXT_AGENT: calendar_bot\n"
+            "NEXT_INSTRUCTION: Look up the room field for the 3pm design review event",
+            "DONE: yes\nPROGRESS: yes\nNEXT_AGENT: calendar_bot\n"
+            "NEXT_INSTRUCTION: Room C (Innovation Lab) is booked for the 3pm design review.",
         ]
     )
     room_bot = Worker(

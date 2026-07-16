@@ -14,11 +14,13 @@ from dataclasses import dataclass
 
 from agentic_patterns import Message, ToolRegistry, get_provider, scripted_tool_call
 from agentic_patterns.core.tools import Tool
-
 from patterns.mcp.bridge import make_bridge_fn
 from patterns.mcp.client import MCPClient
 
-SYSTEM_PROMPT = "You are a helpful assistant with access to tools from several MCP servers. Use them when asked to compute something."
+SYSTEM_PROMPT = (
+    "You are a helpful assistant with access to tools from several MCP servers. "
+    "Use them when asked to compute something."
+)
 
 
 @dataclass
@@ -71,8 +73,15 @@ class MultiServerHost:
             merged_name = str(spec["name"])
             routed = self._routes[merged_name]
             call = make_bridge_fn(routed.client, routed.original_name)
+            input_schema = spec["inputSchema"]
+            assert isinstance(input_schema, dict), f"{merged_name!r} inputSchema must be a JSON object"
             registry.register(
-                Tool(name=merged_name, description=str(spec["description"]), parameters=dict(spec["inputSchema"]), fn=call)  # type: ignore[arg-type]
+                Tool(
+                    name=merged_name,
+                    description=str(spec["description"]),
+                    parameters=input_schema,
+                    fn=call,
+                )
             )
 
     def route_of(self, merged_name: str) -> str:

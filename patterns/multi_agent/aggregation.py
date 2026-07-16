@@ -17,7 +17,6 @@ from collections import Counter
 from dataclasses import dataclass
 
 from agentic_patterns import Message, Provider, get_provider
-
 from patterns.multi_agent.worker import Subtask, Worker, WorkerResult, dispatch_parallel
 
 
@@ -153,13 +152,29 @@ def run_model_synthesis_demo() -> tuple[list[WorkerResult], str]:
         ),
     }
     scripts = {
-        "timeline": "Checkout latency began climbing at 14:02 UTC and returned to baseline at 14:41 UTC after a rollback.",
-        "cause": "A new connection-pool size of 5 (down from 50) was deployed to the payments service, exhausting pooled connections under normal load.",
-        "impact": "Roughly 8% of checkout attempts during the window saw latency above 3 seconds, per the checkout-latency dashboard.",
+        "timeline": (
+            "Checkout latency began climbing at 14:02 UTC and returned to baseline at 14:41 UTC after a rollback."
+        ),
+        "cause": (
+            "A new connection-pool size of 5 (down from 50) was deployed to the payments service, "
+            "exhausting pooled connections under normal load."
+        ),
+        "impact": (
+            "Roughly 8% of checkout attempts during the window saw latency above 3 seconds, "
+            "per the checkout-latency dashboard."
+        ),
     }
+    role_by_subtask = [
+        ("timeline", "timeline_analyst"),
+        ("cause", "root_cause_analyst"),
+        ("impact", "impact_analyst"),
+    ]
     workers = [
-        (Worker(role, f"You are a {role} for an incident postmortem.", get_provider(script=[scripts[sid]])), subtasks[sid])
-        for sid, role in [("timeline", "timeline_analyst"), ("cause", "root_cause_analyst"), ("impact", "impact_analyst")]
+        (
+            Worker(role, f"You are a {role} for an incident postmortem.", get_provider(script=[scripts[sid]])),
+            subtasks[sid],
+        )
+        for sid, role in role_by_subtask
     ]
     results = dispatch_parallel(workers)
     synthesis_provider = get_provider(

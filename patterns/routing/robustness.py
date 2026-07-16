@@ -86,7 +86,9 @@ _SENSITIVE_PROBES: tuple[str, ...] = (
 )
 
 
-def flip_rate(router_fn: Callable[[str], str], query: str, perturbations: Sequence[Perturbation] = DEFAULT_PERTURBATIONS) -> float:
+def flip_rate(
+    router_fn: Callable[[str], str], query: str, perturbations: Sequence[Perturbation] = DEFAULT_PERTURBATIONS
+) -> float:
     """Fraction of `perturbations` that change `router_fn`'s route on `query`.
 
     Args:
@@ -195,7 +197,9 @@ def check_reasoning_safety(
     return SafetyCheckResult(passed=not failures, failures=failures)
 
 
-def run_robustness_demo() -> tuple[dict[str, dict[str, float]], tuple[float, float], SafetyCheckResult, SafetyCheckResult]:
+def run_robustness_demo() -> (
+    tuple[dict[str, dict[str, float]], tuple[float, float], SafetyCheckResult, SafetyCheckResult]
+):
     """Run the flip-rate table, the boundary probe, and both safety invariant checks."""
     table = build_flip_rate_table()
     boundary = boundary_probe()

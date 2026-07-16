@@ -27,7 +27,6 @@ import re
 from typing import Any
 
 from agentic_patterns import Provider, get_provider
-
 from patterns.reflection.loop import Critique, ReflectionResult, run_reflection_loop
 from patterns.reflection.prompting import make_generate, make_refine
 

@@ -48,6 +48,7 @@ function builds its providers through `agentic_patterns.get_provider`.
 
 from __future__ import annotations
 
+from agentic_patterns import get_provider
 from patterns.multi_agent import (
     agent_card,
     aggregation,
@@ -57,11 +58,10 @@ from patterns.multi_agent import (
     group_chat,
     handoff,
     hierarchical,
-    maker_checker,
     magentic,
+    maker_checker,
     supervisor,
 )
-from agentic_patterns import get_provider
 
 
 def main() -> None:

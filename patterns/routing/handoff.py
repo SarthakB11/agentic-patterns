@@ -20,7 +20,6 @@ model rather than from a rule or embedding comparison the app wrote.
 from __future__ import annotations
 
 from agentic_patterns import Message, Provider, get_provider, scripted_tool_call
-
 from patterns.routing.registry import RouteDecision
 
 _TRIAGE_SYSTEM = (
@@ -71,7 +70,9 @@ def run_handoff(user_text: str, triage_provider: Provider, sub_agent_providers: 
         text, and `metadata["transferred"]` records whether a handoff
         occurred.
     """
-    completion = triage_provider.complete([Message.user(user_text)], tools=_transfer_tool_specs(), system=_TRIAGE_SYSTEM)
+    completion = triage_provider.complete(
+        [Message.user(user_text)], tools=_transfer_tool_specs(), system=_TRIAGE_SYSTEM
+    )
 
     if not completion.tool_calls:
         return RouteDecision(

@@ -29,7 +29,6 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 from agentic_patterns import Message, MockProvider, Provider
-
 from patterns.multi_agent.handoff import DelegationTask
 
 
@@ -113,7 +112,9 @@ class SelectionResult:
 TIE_BREAK_SYSTEM = "You disambiguate a tie between equally-scored agent cards. Reply with the chosen agent's name only."
 
 
-def select(registry: Registry, task_keywords: set[str], *, tie_break_provider: Provider | None = None) -> SelectionResult:
+def select(
+    registry: Registry, task_keywords: set[str], *, tie_break_provider: Provider | None = None
+) -> SelectionResult:
     """Rank registered cards by skill match and return the winner.
 
     Ties are broken by name for determinism; if `tie_break_provider` is
@@ -137,7 +138,11 @@ def select(registry: Registry, task_keywords: set[str], *, tie_break_provider: P
     if len(top) == 1 or tie_break_provider is None:
         return SelectionResult(top[0], top_score, tie_broken_by_llm=False)
     names = ", ".join(c.name for c in top)
-    prompt = f"Task needs: {sorted(task_keywords)}\nTied candidates (equal skill-match score): {names}\nPick exactly one by name."
+    prompt = (
+        f"Task needs: {sorted(task_keywords)}\n"
+        f"Tied candidates (equal skill-match score): {names}\n"
+        "Pick exactly one by name."
+    )
     chosen_name = tie_break_provider.complete([Message.user(prompt)], system=TIE_BREAK_SYSTEM).content.strip()
     chosen = next((c for c in top if c.name == chosen_name), top[0])
     return SelectionResult(chosen, top_score, tie_broken_by_llm=True)
@@ -155,9 +160,15 @@ def delegate(coordinator_name: str, selection: SelectionResult, task: str, provi
         task: The task text being delegated.
         provider: Provider for the selected agent's own resolution call.
     """
-    dtask = DelegationTask(task_id=f"a2a-{selection.card.name}", from_agent=coordinator_name, to_agent=selection.card.name, payload=task)
+    dtask = DelegationTask(
+        task_id=f"a2a-{selection.card.name}",
+        from_agent=coordinator_name,
+        to_agent=selection.card.name,
+        payload=task,
+    )
     dtask.transition("in_progress", f"delegated via card match, score={selection.score}")
-    answer = provider.complete([Message.user(task)], system=f"You are {selection.card.name}. {selection.card.description}").content
+    delegate_system = f"You are {selection.card.name}. {selection.card.description}"
+    answer = provider.complete([Message.user(task)], system=delegate_system).content
     dtask.payload = answer
     dtask.transition("completed", f"resolved by {selection.card.name}")
     return dtask
@@ -176,9 +187,27 @@ def run_agent_card_demo() -> tuple[SelectionResult, DelegationTask, str]:
     of guessing.
     """
     registry = Registry()
-    registry.register(AgentCard("billing_agent", "Handles invoices, refunds, and payment disputes.", [Skill("billing", ["refund", "invoice", "charge", "payment"])]))
-    registry.register(AgentCard("export_agent", "Exports account data to CSV or JSON.", [Skill("export", ["export", "csv", "json", "download"])]))
-    registry.register(AgentCard("translation_agent", "Translates text between languages.", [Skill("translate", ["translate", "language", "locale"])]))
+    registry.register(
+        AgentCard(
+            "billing_agent",
+            "Handles invoices, refunds, and payment disputes.",
+            [Skill("billing", ["refund", "invoice", "charge", "payment"])],
+        )
+    )
+    registry.register(
+        AgentCard(
+            "export_agent",
+            "Exports account data to CSV or JSON.",
+            [Skill("export", ["export", "csv", "json", "download"])],
+        )
+    )
+    registry.register(
+        AgentCard(
+            "translation_agent",
+            "Translates text between languages.",
+            [Skill("translate", ["translate", "language", "locale"])],
+        )
+    )
 
     task = "Please refund the duplicate charge on my last invoice."
     selection = select(registry, {"refund", "invoice", "charge"})

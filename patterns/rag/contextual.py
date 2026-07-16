@@ -28,7 +28,6 @@ together as one function here.
 from __future__ import annotations
 
 from agentic_patterns import Embedder, Message, Provider, get_embedder, get_provider
-
 from patterns.rag.chunking import Chunk, Document, ScoredChunk
 from patterns.rag.corpus import DOCUMENTS_BY_ID, default_chunks
 from patterns.rag.dense import DenseIndex, build_dense_index, dense_retrieve
@@ -137,7 +136,12 @@ def run_contextual_demo(
     all_chunks = chunks if chunks is not None else default_chunks()
     by_id = {chunk.id: chunk for chunk in all_chunks}
     orphan = Chunk(id="billing-faq#orphan", source_id="billing-faq", text=_ORPHAN_TEXT, start=213, end=309)
-    distractors = [by_id["oncall-rotation#0"], by_id["billing-faq#0"], by_id["deploy-policy#0"], by_id["data-retention#0"]]
+    distractors = [
+        by_id["oncall-rotation#0"],
+        by_id["billing-faq#0"],
+        by_id["deploy-policy#0"],
+        by_id["data-retention#0"],
+    ]
     demo_chunks = [*distractors, orphan]
 
     if embedder is None:

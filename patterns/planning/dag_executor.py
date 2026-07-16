@@ -18,7 +18,6 @@ from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 
 from agentic_patterns import Message, Provider, ToolCall, ToolRegistry, get_provider
-
 from patterns.planning.parser import parse_plan
 from patterns.planning.plan import (
     Plan,

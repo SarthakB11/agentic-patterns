@@ -28,7 +28,6 @@ import statistics
 from collections.abc import Callable
 
 from agentic_patterns import Provider, get_provider
-
 from patterns.reflection.loop import Critique, ReflectionResult, run_reflection_loop
 from patterns.reflection.prompting import make_critique, make_generate, make_refine
 
@@ -78,14 +77,14 @@ def make_sampled_critic(
         if sample_log is not None:
             sample_log.append([s.score for s in samples])
 
-        scored = [s for s in samples if s.score is not None]
-        median_score = statistics.median(s.score for s in scored) if scored else None
+        scored = [(s.score, s) for s in samples if s.score is not None]
+        median_score = statistics.median(score for score, _s in scored) if scored else None
 
         approvals = sum(1 for s in samples if s.approved)
         approved = n > 0 and (approvals / n) >= quorum
 
         if scored and median_score is not None:
-            representative = min(scored, key=lambda s: abs(s.score - median_score))
+            _closest_score, representative = min(scored, key=lambda pair: abs(pair[0] - median_score))
             comments = representative.comments
         else:
             comments = samples[0].comments if samples else ""

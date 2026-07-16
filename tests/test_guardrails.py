@@ -11,7 +11,6 @@ from __future__ import annotations
 import pytest
 
 from agentic_patterns import MockProvider, ToolCall, ToolRegistry
-
 from patterns.guardrails.architecture import plan_then_execute
 from patterns.guardrails.core import (
     DecisionLog,
@@ -53,7 +52,6 @@ from patterns.guardrails.pretool_guard import PreToolGuard, ToolPolicy, execute_
 from patterns.guardrails.reasoning_auditor import ReasoningAuditorGuard, make_model_auditor
 from patterns.guardrails.retrieval_guard import Chunk, RetrievalGuard, filter_chunks
 from patterns.guardrails.scenarios import run_pii_redact_demo
-
 
 # --- core: Guard protocol, OnFail, fail-closed run_guard --------------------
 

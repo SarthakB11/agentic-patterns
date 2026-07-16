@@ -27,7 +27,6 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 from agentic_patterns import Embedder, Message, Provider, get_embedder, get_provider
-
 from patterns.rag.chunking import Chunk
 from patterns.rag.corpus import default_chunks
 from patterns.rag.dense import DenseIndex, build_dense_index, dense_retrieve

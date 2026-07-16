@@ -24,7 +24,6 @@ from __future__ import annotations
 from typing import Any
 
 from agentic_patterns import Embedder, Message, Provider, get_embedder, get_provider
-
 from patterns.memory.retrieval import RetrievalConfig, retrieve
 from patterns.memory.vector_store import ScoredRecord, VectorStore
 

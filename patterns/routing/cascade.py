@@ -32,7 +32,6 @@ from __future__ import annotations
 import random
 
 from agentic_patterns import Message, Provider, get_provider
-
 from patterns.routing.registry import RouteDecision
 
 _WEAK_SIGNALS = ("i'm not sure", "i don't know", "unclear", "cannot determine", "not enough information")
@@ -116,8 +115,12 @@ def select_tier(question: str) -> RouteDecision:
     """
     lowered = question.lower()
     if any(signal in lowered for signal in _HARD_SIGNALS):
-        return RouteDecision(route="strong", score=1.0, method="capability_selection", metadata={"reason": "hard_signal"})
-    return RouteDecision(route="cheap", score=1.0, method="capability_selection", metadata={"reason": "no_hard_signal"})
+        return RouteDecision(
+            route="strong", score=1.0, method="capability_selection", metadata={"reason": "hard_signal"}
+        )
+    return RouteDecision(
+        route="cheap", score=1.0, method="capability_selection", metadata={"reason": "no_hard_signal"}
+    )
 
 
 def run_cascade_demo() -> tuple[RouteDecision, RouteDecision]:

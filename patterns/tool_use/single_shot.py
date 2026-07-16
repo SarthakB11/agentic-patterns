@@ -10,7 +10,6 @@ in this pattern builds on.
 from __future__ import annotations
 
 from agentic_patterns import Message, get_provider, scripted_tool_call
-
 from patterns.tool_use.catalog import SYSTEM_PROMPT, build_registry
 from patterns.tool_use.loop import ToolLoopResult, run_tool_loop
 

@@ -20,8 +20,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from agentic_patterns import Provider, ToolCall, ToolRegistry, Message, get_provider
-
+from agentic_patterns import Message, Provider, ToolCall, ToolRegistry, get_provider
 from patterns.react.parser import ActionParseError, parse_action
 from patterns.react.scratchpad import Scratchpad, Step
 from patterns.react.text_loop import DEFAULT_FORCE_MESSAGE, FEW_SHOT_SYSTEM_PROMPT, _build_arguments, _prompt
@@ -44,10 +43,9 @@ def detect_oscillation(steps: list[Step], window: int = 4) -> bool:
         return False
     tail = steps[-window:]
     keys = [(s.action, s.action_input) for s in tail]
-    for period in range(2, window // 2 + 1):
-        if all(keys[i] == keys[i - period] for i in range(period, window)):
-            return True
-    return False
+    return any(
+        all(keys[i] == keys[i - period] for i in range(period, window)) for period in range(2, window // 2 + 1)
+    )
 
 
 def detect_no_progress(steps: list[Step], window: int = 3) -> bool:
@@ -162,7 +160,9 @@ def run_react_with_derailment_recovery(
                 continue
             return DerailmentResult(None, scratchpad, step_num, "derailed", fired, True)
 
-    return DerailmentResult(DEFAULT_FORCE_MESSAGE, scratchpad, max_iterations, "max_iterations_force", detector_name, nudged)
+    return DerailmentResult(
+        DEFAULT_FORCE_MESSAGE, scratchpad, max_iterations, "max_iterations_force", detector_name, nudged
+    )
 
 
 def demo_derailment() -> DerailmentResult:

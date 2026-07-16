@@ -33,7 +33,6 @@ from collections.abc import Callable
 from dataclasses import dataclass
 
 from agentic_patterns import Provider, get_provider
-
 from patterns.reflection.loop import Critique, ReflectionResult, run_reflection_loop
 from patterns.reflection.prompting import make_critique, make_generate, make_refine
 
@@ -86,7 +85,7 @@ class CriticLens:
     weight: float = 1.0
 
 
-def _aggregate(per_lens: list[tuple[str, Critique]], *, policy: str, threshold: float) -> Critique:
+def _aggregate(per_lens: list[tuple[str, float, Critique]], *, policy: str, threshold: float) -> Critique:
     """Combine per-lens critiques into one aggregate `Critique`.
 
     Args:

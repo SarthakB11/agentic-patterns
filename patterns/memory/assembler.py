@@ -26,7 +26,6 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 from agentic_patterns import Message, get_embedder
-
 from patterns.memory.procedural import ProceduralMemory
 from patterns.memory.semantic import SemanticMemory
 from patterns.memory.short_term import ShortTermMemory, TokenBudget, count_tokens

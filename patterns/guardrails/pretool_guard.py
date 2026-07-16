@@ -36,7 +36,6 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 
 from agentic_patterns import ToolCall, ToolRegistry
-
 from patterns.guardrails.core import DecisionLog, GuardResult, OnFail, run_guard
 
 

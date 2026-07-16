@@ -53,9 +53,8 @@ def run_react(provider: Provider, goal: str, registry: ToolRegistry, max_steps: 
     """
     messages: list[Message] = [Message.user(goal)]
     model_calls = 0
-    for _ in range(max_steps):
+    for model_calls in range(1, max_steps + 1):
         completion = provider.complete(messages, tools=registry.specs(), system=SYSTEM)
-        model_calls += 1
         if not completion.tool_calls:
             messages.append(Message.assistant(completion.content))
             return ReactRun(transcript=messages, final_answer=completion.content, model_calls=model_calls)

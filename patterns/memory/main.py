@@ -172,7 +172,7 @@ def main() -> None:
     mem0 = mem0_update.run_mem0_update_demo()
     print(f"  operations: {mem0['operations']}")
     print(f"  record count after each turn: {mem0['record_count_after_each_turn']}")
-    print(f"  (a same-key overwrite would have missed the plan/subscription rename)")
+    print("  (a same-key overwrite would have missed the plan/subscription rename)")
     print()
 
     print("=== 14. Forgetting: decay, TTL, capacity bound, intent-aware delete ===")

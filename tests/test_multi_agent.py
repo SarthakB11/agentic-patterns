@@ -12,7 +12,6 @@ from __future__ import annotations
 import pytest
 
 from agentic_patterns import MockProvider, Provider
-
 from patterns.multi_agent import (
     agent_card,
     aggregation,
@@ -22,8 +21,8 @@ from patterns.multi_agent import (
     group_chat,
     handoff,
     hierarchical,
-    maker_checker,
     magentic,
+    maker_checker,
     supervisor,
 )
 from patterns.multi_agent.state import SharedState, TraceEntry

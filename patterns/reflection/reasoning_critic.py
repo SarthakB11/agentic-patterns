@@ -31,8 +31,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
-from agentic_patterns import Completion, Message, Provider, get_provider
-
+from agentic_patterns import Completion, Message, MockProvider, Provider
 from patterns.reflection.loop import ReflectionResult, run_reflection_loop
 from patterns.reflection.prompting import make_critique, make_generate, make_refine
 
@@ -99,7 +98,7 @@ class ReasoningBenchmark:
 
 
 def run_benchmark(
-    loop_provider: Provider | None = None, single_pass_provider: Provider | None = None, task: str = _TASK
+    loop_provider: MockProvider | None = None, single_pass_provider: MockProvider | None = None, task: str = _TASK
 ) -> ReasoningBenchmark:
     """Run the same task through the explicit loop and the single reasoning pass.
 
@@ -107,7 +106,10 @@ def run_benchmark(
         loop_provider: Drives the loop's generate, critique, and refine
             calls (self-refine shape). Defaults to a `MockProvider`
             scripted with a wrong first answer, a critique naming the
-            error, and a corrected, approved second answer: 4 calls.
+            error, and a corrected, approved second answer: 4 calls. Typed
+            as `MockProvider`, not the broader `Provider`, because this
+            benchmark reports `.calls` telemetry that only the mock records;
+            a real provider has no such record.
         single_pass_provider: Drives `run_single_pass`. Defaults to a
             `MockProvider` scripted with one completion whose `reasoning`
             shows a self-check catching the same arithmetic slip in place.
@@ -118,8 +120,8 @@ def run_benchmark(
         caller can compare call economy directly.
     """
     if loop_provider is None:
-        loop_provider = get_provider(
-            script=[
+        loop_provider = MockProvider(
+            [
                 "14 times 9 is 108.\nAnswer: 108",
                 "SCORE: 2\n14 * 9 = 126, not 108. Recompute the multiplication.",
                 "14 times 9: 14 * 9 = 126.\nAnswer: 126",
@@ -127,8 +129,8 @@ def run_benchmark(
             ]
         )
     if single_pass_provider is None:
-        single_pass_provider = get_provider(
-            script=[
+        single_pass_provider = MockProvider(
+            [
                 Completion(
                     content="14 times 9: 14 * 9 = 126.\nAnswer: 126",
                     reasoning=(

@@ -105,7 +105,9 @@ class HTTPClientTransport:
     def next_id(self) -> str:
         return f"http-{next(self._ids)}"
 
-    def post(self, message: dict[str, Any], timeout: float = 5.0, headers: dict[str, str] | None = None) -> dict[str, Any] | None:
+    def post(
+        self, message: dict[str, Any], timeout: float = 5.0, headers: dict[str, str] | None = None
+    ) -> dict[str, Any] | None:
         """POST one JSON-RPC message and return the decoded response, or `None` for a `202`.
 
         Args:
@@ -144,7 +146,11 @@ def run_http_transport_demo() -> dict[str, Any]:
             jsonrpc.build_request(
                 transport.next_id(),
                 "initialize",
-                {"protocolVersion": PROTOCOL_VERSION, "capabilities": {}, "clientInfo": {"name": "http-demo-client", "version": "0.1.0"}},
+                {
+                    "protocolVersion": PROTOCOL_VERSION,
+                    "capabilities": {},
+                    "clientInfo": {"name": "http-demo-client", "version": "0.1.0"},
+                },
             )
         )
         assert init_response is not None

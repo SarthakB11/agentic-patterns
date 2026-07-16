@@ -82,7 +82,9 @@ def _validate_accept_content(schema: dict[str, Any], content: dict[str, Any]) ->
     return None
 
 
-def schedule_meeting(client_capabilities: set[str], handler: ElicitationHandler | None) -> tuple[list[dict[str, Any]], bool]:
+def schedule_meeting(
+    client_capabilities: set[str], handler: ElicitationHandler | None
+) -> tuple[list[dict[str, Any]], bool]:
     """Tool: schedule a meeting, asking the user for a time slot via form-mode elicitation.
 
     Args:
@@ -104,7 +106,9 @@ def schedule_meeting(client_capabilities: set[str], handler: ElicitationHandler 
         return [{"type": "text", "text": "no elicitation handler registered; cannot schedule"}], True
 
     request = jsonrpc.build_request(
-        _next_request_id(), "elicitation/create", {"message": "What time works for your meeting?", "requestedSchema": MEETING_SCHEMA}
+        _next_request_id(),
+        "elicitation/create",
+        {"message": "What time works for your meeting?", "requestedSchema": MEETING_SCHEMA},
     )
     result = handler(request["params"])
     action = result.get("action")
@@ -122,7 +126,9 @@ def schedule_meeting(client_capabilities: set[str], handler: ElicitationHandler 
     return [{"type": "text", "text": f"unrecognized elicitation action: {action!r}"}], True
 
 
-def connect_payment_method(client_capabilities: set[str], handler: ElicitationHandler | None) -> tuple[list[dict[str, Any]], bool]:
+def connect_payment_method(
+    client_capabilities: set[str], handler: ElicitationHandler | None
+) -> tuple[list[dict[str, Any]], bool]:
     """Tool: URL-mode elicitation, handing the user to an external page and resuming after.
 
     Args:
@@ -136,14 +142,19 @@ def connect_payment_method(client_capabilities: set[str], handler: ElicitationHa
         A `(content, is_error)` tuple.
     """
     if ELICITATION_CLIENT_CAPABILITY not in client_capabilities:
-        return [{"type": "text", "text": "client did not offer the elicitation capability; cannot connect a payment method"}], True
+        return [
+            {"type": "text", "text": "client did not offer the elicitation capability; cannot connect a payment method"}
+        ], True
     if handler is None:
         return [{"type": "text", "text": "no elicitation handler registered; cannot connect a payment method"}], True
 
     request = jsonrpc.build_request(
         _next_request_id(),
         "elicitation/create",
-        {"message": "Complete payment setup at the linked page, then return here.", "requestedSchema": PAYMENT_URL_SCHEMA},
+        {
+            "message": "Complete payment setup at the linked page, then return here.",
+            "requestedSchema": PAYMENT_URL_SCHEMA,
+        },
     )
     result = handler(request["params"])
     action = result.get("action")

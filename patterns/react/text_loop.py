@@ -16,12 +16,12 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from agentic_patterns import Message, Provider, ToolCall, ToolRegistry, get_provider
-
 from patterns.react.parser import ActionParseError, parse_action
 from patterns.react.scratchpad import Scratchpad, Step
 from patterns.react.world import build_registry
 
-FEW_SHOT_SYSTEM_PROMPT = """You are a research agent that answers questions by alternating between reasoning and tool calls.
+FEW_SHOT_SYSTEM_PROMPT = """You are a research agent that answers questions by alternating between reasoning \
+and tool calls.
 
 Use exactly this format, one Thought/Action pair per reply:
 Thought: <your reasoning about what to do next>
@@ -156,9 +156,13 @@ def run_react(
             Step(thought=parsed.thought, action=parsed.tool, action_input=parsed.args_text, observation=observation)
         )
         if scratchpad.is_repeating():
-            return ReactResult(answer=None, scratchpad=scratchpad, steps_taken=step_num, stopped_reason="loop_detected")
+            return ReactResult(
+                answer=None, scratchpad=scratchpad, steps_taken=step_num, stopped_reason="loop_detected"
+            )
 
-    return _stop_at_max_iterations(provider, goal, scratchpad, system_prompt, on_max_iterations, force_message, max_iterations)
+    return _stop_at_max_iterations(
+        provider, goal, scratchpad, system_prompt, on_max_iterations, force_message, max_iterations
+    )
 
 
 def _stop_at_max_iterations(
@@ -179,11 +183,17 @@ def _stop_at_max_iterations(
         )
         completion = provider.complete([Message.user(prompt)], system=system_prompt)
         return ReactResult(
-            answer=completion.content, scratchpad=scratchpad, steps_taken=max_iterations, stopped_reason="max_iterations_generate"
+            answer=completion.content,
+            scratchpad=scratchpad,
+            steps_taken=max_iterations,
+            stopped_reason="max_iterations_generate",
         )
     if on_max_iterations == "force":
         return ReactResult(
-            answer=force_message, scratchpad=scratchpad, steps_taken=max_iterations, stopped_reason="max_iterations_force"
+            answer=force_message,
+            scratchpad=scratchpad,
+            steps_taken=max_iterations,
+            stopped_reason="max_iterations_force",
         )
     raise ValueError(f"Unknown on_max_iterations policy: {on_max_iterations!r}")
 

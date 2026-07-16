@@ -28,7 +28,6 @@ import re
 from collections.abc import Callable
 
 from agentic_patterns import Message, Provider, get_provider
-
 from patterns.evaluation.eval_set import EvalCase, get_case
 from patterns.evaluation.verdict import Verdict, parse_pointwise_verdict
 

@@ -33,7 +33,6 @@ from dataclasses import dataclass
 from typing import Literal
 
 from agentic_patterns import Provider, get_provider
-
 from patterns.routing import cascade, llm_classifier, rule_based, semantic
 from patterns.routing.registry import RouteDecision
 
@@ -205,7 +204,9 @@ def score_select_tier(dataset: list[tuple[str, str]] = cascade._DIFFICULTY_DATAS
 def oracle_score(dataset: list[tuple[str, str]], kind: Dataset) -> RouterScore:
     """The quality ceiling: route == label by construction, no burned attempts."""
     labels = [label for _, label in dataset]
-    score = _build_score("oracle", kind, list(labels), labels, [route_cost(label) for label in labels], is_baseline=True)
+    score = _build_score(
+        "oracle", kind, list(labels), labels, [route_cost(label) for label in labels], is_baseline=True
+    )
     score.accuracy = 1.0
     return score
 
@@ -214,25 +215,39 @@ def random_score(dataset: list[tuple[str, str]], kind: Dataset, choices: list[st
     """Fixed-seed random choice among `choices`, for a reproducible baseline."""
     rng = random.Random(seed)
     routes = [rng.choice(choices) for _ in dataset]
-    return _build_score("random", kind, routes, [label for _, label in dataset], [route_cost(r) for r in routes], is_baseline=True)
+    return _build_score(
+        "random", kind, routes, [label for _, label in dataset], [route_cost(r) for r in routes], is_baseline=True
+    )
 
 
 def always_score(name: str, dataset: list[tuple[str, str]], kind: Dataset, fixed_route: str) -> RouterScore:
     """Every row routes to `fixed_route` regardless of its label."""
     routes = [fixed_route] * len(dataset)
-    return _build_score(name, kind, routes, [label for _, label in dataset], [route_cost(fixed_route)] * len(dataset), is_baseline=True)
+    return _build_score(
+        name,
+        kind,
+        routes,
+        [label for _, label in dataset],
+        [route_cost(fixed_route)] * len(dataset),
+        is_baseline=True,
+    )
 
 
-def _finalize(score: RouterScore, oracle: RouterScore, random_baseline: RouterScore, always_strong: RouterScore | None) -> RouterScore:
+def _finalize(
+    score: RouterScore, oracle: RouterScore, random_baseline: RouterScore, always_strong: RouterScore | None
+) -> RouterScore:
     """Fill in the comparison flags on `score`, including baselines against each other."""
     score.beats_random = score.accuracy > random_baseline.accuracy
     if always_strong is not None:
         score.beats_always_strong_on_cost = (
-            score.total_cost < always_strong.total_cost and score.accuracy >= always_strong.accuracy - _ACCURACY_TOLERANCE
+            score.total_cost < always_strong.total_cost
+            and score.accuracy >= always_strong.accuracy - _ACCURACY_TOLERANCE
         )
     score.oracle_gap = oracle.accuracy - score.accuracy
     if not score.is_baseline:
-        score.earns_complexity = score.beats_random and (always_strong is None or bool(score.beats_always_strong_on_cost))
+        score.earns_complexity = score.beats_random and (
+            always_strong is None or bool(score.beats_always_strong_on_cost)
+        )
     return score
 
 
@@ -271,7 +286,10 @@ def run_benchmark(seed: int = 0) -> list[RouterScore]:
 
 def render_table(scores: list[RouterScore]) -> str:
     """Render `run_benchmark`'s scores as an aligned, readable table."""
-    header = f"{'router':<16} {'dataset':<9} {'accuracy':>8} {'cost':>7} {'beats_random':>13} {'beats_strong$':>14} {'oracle_gap':>11} {'verdict':>17}"
+    header = (
+        f"{'router':<16} {'dataset':<9} {'accuracy':>8} {'cost':>7} {'beats_random':>13} "
+        f"{'beats_strong$':>14} {'oracle_gap':>11} {'verdict':>17}"
+    )
     lines = [header]
     for s in scores:
         beats_strong = "n/a" if s.beats_always_strong_on_cost is None else str(s.beats_always_strong_on_cost)

@@ -15,7 +15,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from agentic_patterns import Message, Provider, get_provider
-
 from patterns.evaluation.eval_set import EvalCase, get_case
 from patterns.evaluation.verdict import PairwiseVerdict, parse_pairwise_verdict
 

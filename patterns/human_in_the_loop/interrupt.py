@@ -30,7 +30,6 @@ from collections.abc import Callable
 from dataclasses import dataclass
 
 from agentic_patterns import ToolCall, ToolRegistry
-
 from patterns.human_in_the_loop.fake_tools import build_extended_ops_registry
 from patterns.human_in_the_loop.gate import AuditLog, AuditRecord, GateOutcome, UnauthorizedDecisionError
 

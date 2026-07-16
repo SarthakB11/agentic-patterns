@@ -28,7 +28,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from agentic_patterns import get_provider
-
 from patterns.evaluation.eval_set import get_case
 from patterns.evaluation.pairwise import PairwiseResult, run_pairwise_judgment
 

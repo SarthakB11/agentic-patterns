@@ -10,7 +10,6 @@ from __future__ import annotations
 import pytest
 
 from agentic_patterns import MockProvider
-
 from patterns.evaluation import (
     aggregate,
     ensemble,

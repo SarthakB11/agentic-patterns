@@ -26,7 +26,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from agentic_patterns import Provider, get_provider
-
 from patterns.evaluation.aggregate import pairwise_win_rate
 from patterns.evaluation.eval_set import EvalCase, get_case
 from patterns.evaluation.pairwise import run_pairwise_judgment

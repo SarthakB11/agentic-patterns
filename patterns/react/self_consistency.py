@@ -18,11 +18,10 @@ No loop logic lives here; every rollout is a normal call to an existing
 from __future__ import annotations
 
 from collections.abc import Callable, Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any
 
 from agentic_patterns import Provider, ToolRegistry, get_provider
-
 from patterns.react.text_loop import run_react
 from patterns.react.world import build_registry
 
@@ -144,7 +143,8 @@ def _tally(
 ) -> SelfConsistencyResult:
     """Build the final result: pick the winner and render votes back to original text."""
     votes = {original_text[k]: v for k, v in counts.items()}
-    return SelfConsistencyResult(_pick_winner(counts, first_seen, original_text), votes, outcomes, len(outcomes), stopped_early)
+    winner = _pick_winner(counts, first_seen, original_text)
+    return SelfConsistencyResult(winner, votes, outcomes, len(outcomes), stopped_early)
 
 
 def _pick_winner(counts: dict[str, float], first_seen: dict[str, int], original_text: dict[str, str]) -> str:

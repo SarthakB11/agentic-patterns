@@ -36,8 +36,7 @@ import re
 from dataclasses import dataclass, field
 
 from agentic_patterns import Embedder, Message, Provider, get_embedder, get_provider
-
-from patterns.rag.chunking import Chunk, ScoredChunk
+from patterns.rag.chunking import Chunk
 from patterns.rag.corpus import default_chunks
 from patterns.rag.dense import DenseIndex, build_dense_index, dense_retrieve
 from patterns.rag.generation import ABSTAIN_ANSWER, GroundedAnswer, extract_citations, generate_grounded_answer
@@ -150,7 +149,8 @@ def extract_entities_llm(chunks: list[Chunk], provider: Provider) -> dict[str, l
     Returns:
         A mapping from chunk id to the entities the model listed for it.
     """
-    completion = provider.complete([Message.user(build_entity_extraction_prompt(chunks))], system=_ENTITY_EXTRACTION_SYSTEM)
+    prompt = build_entity_extraction_prompt(chunks)
+    completion = provider.complete([Message.user(prompt)], system=_ENTITY_EXTRACTION_SYSTEM)
     return parse_entity_extraction(completion.content)
 
 
@@ -214,7 +214,8 @@ def build_graph(chunks: list[Chunk], entities_by_chunk: dict[str, list[str]]) ->
                 entities.append(entity)
         for i in range(len(chunk_entities)):
             for j in range(i + 1, len(chunk_entities)):
-                pair = tuple(sorted((chunk_entities[i], chunk_entities[j])))
+                first, second = sorted((chunk_entities[i], chunk_entities[j]))
+                pair = (first, second)
                 edge = edge_by_pair.get(pair)
                 if edge is None:
                     edge = GraphEdge(source=pair[0], target=pair[1])
@@ -416,7 +417,8 @@ def global_search(query: str, communities: list[Community], provider: Provider) 
     """
     partials: dict[int, str] = {}
     for community in communities:
-        completion = provider.complete([Message.user(build_global_map_prompt(query, community))], system=_GLOBAL_MAP_SYSTEM)
+        map_prompt = build_global_map_prompt(query, community)
+        completion = provider.complete([Message.user(map_prompt)], system=_GLOBAL_MAP_SYSTEM)
         text = completion.content.strip()
         if text.upper() != "NOT RELEVANT":
             partials[community.id] = text
@@ -424,7 +426,8 @@ def global_search(query: str, communities: list[Community], provider: Provider) 
     if not partials:
         return GraphSearchResult(mode="global", communities_touched=[])
 
-    completion = provider.complete([Message.user(build_global_reduce_prompt(query, partials))], system=_GLOBAL_REDUCE_SYSTEM)
+    reduce_prompt = build_global_reduce_prompt(query, partials)
+    completion = provider.complete([Message.user(reduce_prompt)], system=_GLOBAL_REDUCE_SYSTEM)
     valid_ids = {f"community-{cid}" for cid in partials}
     citations = extract_citations(completion.content, valid_ids)
     answer = GroundedAnswer(answer=completion.content, citations=citations, abstained=False)
@@ -588,8 +591,9 @@ def run_graph_rag_demo(
     global_result = global_search(_GLOBAL_DEMO_QUERY, communities, provider)
 
     skeptic_result = local_search(_SKEPTIC_DEMO_QUERY, graph, provider, hops=1)
+    skeptic_top_k = len(skeptic_result.chunk_ids) or 1
     skeptic_flat_baseline = [
-        sc.chunk.id for sc in dense_retrieve(_SKEPTIC_DEMO_QUERY, dense_index, embedder, top_k=len(skeptic_result.chunk_ids) or 1)
+        sc.chunk.id for sc in dense_retrieve(_SKEPTIC_DEMO_QUERY, dense_index, embedder, top_k=skeptic_top_k)
     ]
 
     return GraphRagDemoResult(

@@ -23,7 +23,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from agentic_patterns import Embedder, Message, Provider, get_embedder, get_provider
-
 from patterns.rag.chunking import Chunk, ScoredChunk
 from patterns.rag.corpus import default_chunks
 from patterns.rag.dense import DenseIndex, build_dense_index, dense_retrieve
@@ -38,7 +37,9 @@ _SUFFICIENCY_SYSTEM = (
 )
 
 
-def grade_relevance(scored_chunks: list[ScoredChunk], *, threshold: float) -> tuple[list[ScoredChunk], list[ScoredChunk]]:
+def grade_relevance(
+    scored_chunks: list[ScoredChunk], *, threshold: float
+) -> tuple[list[ScoredChunk], list[ScoredChunk]]:
     """Split scored chunks into ones that clear a relevance threshold and ones that don't.
 
     Args:

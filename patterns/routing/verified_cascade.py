@@ -25,8 +25,7 @@ zero-cost heuristic.
 
 from __future__ import annotations
 
-from agentic_patterns import Message, Provider, get_provider
-
+from agentic_patterns import Message, MockProvider, Provider
 from patterns.routing import cascade
 from patterns.routing.registry import RouteDecision
 
@@ -44,14 +43,17 @@ def _judge(question: str, answer: str, provider: Provider) -> bool:
     return "accept" in verdict.strip().lower()
 
 
-def run_verified_cascade(question: str, provider: Provider) -> RouteDecision:
+def run_verified_cascade(question: str, provider: MockProvider) -> RouteDecision:
     """Run cheap -> strong -> human, each hop gated by a scripted judge verdict.
 
     Args:
         question: The question to answer.
         provider: Scripted, in order: the cheap answer, the cheap-answer
             judge verdict, and only if the judge defers, the strong answer
-            and its judge verdict.
+            and its judge verdict. Typed as `MockProvider`, not the base
+            `Provider`, because this function reports `provider_calls` off
+            `provider.calls`, a scripted-transcript attribute that only the
+            mock keeps; a real provider has no such record.
 
     Returns:
         A `RouteDecision` on "cheap" (attempts=1) if the cheap answer is
@@ -98,7 +100,7 @@ def run_verified_cascade_demo() -> tuple[RouteDecision, RouteDecision, RouteDeci
     Returns:
         An (accepted, escalated, abstained) triple.
     """
-    accept_provider = get_provider(
+    accept_provider = MockProvider(
         script=[
             "The refund was processed on the 3rd and will post to your card in 5 to 7 business days.",
             "ACCEPT",
@@ -106,7 +108,7 @@ def run_verified_cascade_demo() -> tuple[RouteDecision, RouteDecision, RouteDeci
     )
     accepted = run_verified_cascade("When will my refund post?", accept_provider)
 
-    escalate_provider = get_provider(
+    escalate_provider = MockProvider(
         script=[
             "I believe the total is around $400, but I am not fully certain of the exact figure.",
             "DEFER",
@@ -119,7 +121,7 @@ def run_verified_cascade_demo() -> tuple[RouteDecision, RouteDecision, RouteDeci
         escalate_provider,
     )
 
-    abstain_provider = get_provider(
+    abstain_provider = MockProvider(
         script=[
             "The asset purchase structure is probably better, though I have not compared the tax basis in detail.",
             "DEFER",

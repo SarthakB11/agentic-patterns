@@ -19,7 +19,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from agentic_patterns import Completion, Message, Provider, Tool, ToolCall, ToolRegistry, get_provider
-
 from patterns.react.world import build_registry
 
 NATIVE_SYSTEM_PROMPT = (
@@ -139,7 +138,9 @@ def run_native_react(
             )
 
         if _repeats_previous_call(messages):
-            return NativeReactResult(answer=None, messages=messages, steps_taken=step_num, stopped_reason="loop_detected")
+            return NativeReactResult(
+                answer=None, messages=messages, steps_taken=step_num, stopped_reason="loop_detected"
+            )
 
         finished_answer: str | None = None
         for call in completion.tool_calls:
@@ -148,9 +149,13 @@ def run_native_react(
             if call.name == "finish":
                 finished_answer = call.arguments.get("answer", observation)
         if finished_answer is not None:
-            return NativeReactResult(answer=finished_answer, messages=messages, steps_taken=step_num, stopped_reason="finish")
+            return NativeReactResult(
+                answer=finished_answer, messages=messages, steps_taken=step_num, stopped_reason="finish"
+            )
 
-    return _stop_at_max_iterations_native(provider, messages, system_prompt, on_max_iterations, force_message, max_iterations)
+    return _stop_at_max_iterations_native(
+        provider, messages, system_prompt, on_max_iterations, force_message, max_iterations
+    )
 
 
 def _stop_at_max_iterations_native(
@@ -163,10 +168,14 @@ def _stop_at_max_iterations_native(
 ) -> NativeReactResult:
     """Apply the configured early-stop policy once the iteration cap is hit."""
     if on_max_iterations == "generate":
-        final_messages = [*messages, Message.user("You are out of tool-call budget. Answer from the work above, in plain text.")]
+        budget_notice = "You are out of tool-call budget. Answer from the work above, in plain text."
+        final_messages = [*messages, Message.user(budget_notice)]
         completion = provider.complete(final_messages, system=system_prompt)
         return NativeReactResult(
-            answer=completion.content, messages=final_messages, steps_taken=max_iterations, stopped_reason="max_iterations_generate"
+            answer=completion.content,
+            messages=final_messages,
+            steps_taken=max_iterations,
+            stopped_reason="max_iterations_generate",
         )
     if on_max_iterations == "force":
         return NativeReactResult(

@@ -20,8 +20,12 @@ from dataclasses import dataclass, field
 from patterns.guardrails.core import GuardResult, OnFail
 
 _STOPWORDS = frozenset(
-    "a an the is are was were be been being this that these those it its of to in on for "
-    "and or but with as at by from into your you our we they he she i".split()
+    [
+        "a", "an", "the", "is", "are", "was", "were", "be", "been", "being",
+        "this", "that", "these", "those", "it", "its", "of", "to", "in", "on",
+        "for", "and", "or", "but", "with", "as", "at", "by", "from", "into",
+        "your", "you", "our", "we", "they", "he", "she", "i",
+    ]
 )
 
 

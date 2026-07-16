@@ -16,7 +16,6 @@ one passes.
 from __future__ import annotations
 
 from agentic_patterns import ToolRegistry
-
 from patterns.planning.plan import Plan, topological_waves
 
 

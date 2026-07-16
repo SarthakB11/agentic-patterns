@@ -12,8 +12,16 @@ chooses to use a tool.
 
 from __future__ import annotations
 
-from agentic_patterns import Embedder, Message, Provider, Tool, ToolRegistry, get_embedder, get_provider, scripted_tool_call
-
+from agentic_patterns import (
+    Embedder,
+    Message,
+    Provider,
+    Tool,
+    ToolRegistry,
+    get_embedder,
+    get_provider,
+    scripted_tool_call,
+)
 from patterns.memory.vector_store import VectorStore
 
 

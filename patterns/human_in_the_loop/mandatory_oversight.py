@@ -29,7 +29,6 @@ from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 
 from agentic_patterns import ToolCall, ToolRegistry
-
 from patterns.human_in_the_loop.fake_tools import build_biometric_registry, build_support_ops_registry
 from patterns.human_in_the_loop.gate import (
     AuditLog,
@@ -262,7 +261,9 @@ def run_two_person_gate(
             request.id, request.action.name, request.action.arguments, "quorum_not_met", None,
             ",".join(sorted(seen)), f"only {len(seen)} distinct approver(s), needs {required_approvals}", now, now,
         ))
-        raise UnauthorizedDecisionError(f"no side effect: request {request.id!r} did not reach a {required_approvals}-person quorum")
+        raise UnauthorizedDecisionError(
+            f"no side effect: request {request.id!r} did not reach a {required_approvals}-person quorum"
+        )
 
     now = clock()
     result = registry.execute(request.action)
@@ -287,7 +288,11 @@ def run_non_overridable_demo() -> tuple[GateOutcome, OversightLog]:
     )
     request = ReviewRequest(id="req-mandatory", context="refund above the Article 14 amount floor", action=ToolCall(
         id="req-mandatory", name="send_refund",
-        arguments={"customer_id": "c-90", "amount_usd": 12000.00, "reason": "chargeback dispute settled in the customer's favor"},
+        arguments={
+            "customer_id": "c-90",
+            "amount_usd": 12000.00,
+            "reason": "chargeback dispute settled in the customer's favor",
+        },
     ))
     outcome = run_mandatory_gate(
         request, registry, decision_source, audit_log, oversight_log,

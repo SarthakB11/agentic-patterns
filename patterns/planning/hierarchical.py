@@ -26,7 +26,6 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 from agentic_patterns import Message, Provider, Tool, ToolCall, ToolRegistry, get_provider
-
 from patterns.planning.parser import parse_plan
 from patterns.planning.plan import Step, StepResult, is_error_observation, substitute_args, topological_waves
 from patterns.planning.validator import validate_plan
@@ -228,6 +227,7 @@ def demo() -> None:
     print(f"Nodes: {run.node_count}, sub-planner calls: {run.expansion_calls}")
     print(f"Compound step {top.step.id!r} expanded into {len(top.children)} primitives, no tool call of its own:")
     for child in top.children:
+        assert child.result is not None, "child was never expanded (budget or depth cap hit before resolution)"
         print(f"  {child.step.id}: {child.step.tool} -> {child.result.output}")
     print("Note: 'day' never called a tool; todo_list.py's flat checklist never nests like this.")
 

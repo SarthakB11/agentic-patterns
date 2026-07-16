@@ -101,7 +101,10 @@ def _demo_basics() -> None:
     text_contents = client.read_resource("note://todo")
     print(f"resources/read note://todo: {text_contents[0]['text']!r}")
     blob_contents = client.read_resource("asset://logo")
-    print(f"resources/read asset://logo: {len(blob_contents[0]['blob'])} base64 chars, mimeType={blob_contents[0]['mimeType']}")
+    print(
+        f"resources/read asset://logo: {len(blob_contents[0]['blob'])} base64 chars, "
+        f"mimeType={blob_contents[0]['mimeType']}"
+    )
     try:
         client.read_resource("note://missing")
     except MCPProtocolError as exc:
@@ -166,20 +169,36 @@ def _demo_stateless() -> None:
 def _demo_integrity() -> None:
     print("=== 8. Tool-definition integrity: pinning and the rug-pull defense ===")
     result = integrity.run_integrity_demo()
-    print(f"clean server, both lists: approved={result['clean_report_2'].approved}, flagged={result['clean_report_2'].flagged}")
-    print(f"poisoned description denied at pin time: flagged={result['denied_report'].flagged}, call refused: isError={result['denied_call']['isError']}")
+    clean_2 = result["clean_report_2"]
+    print(f"clean server, both lists: approved={clean_2.approved}, flagged={clean_2.flagged}")
+    denied_report, denied_call = result["denied_report"], result["denied_call"]
+    print(
+        f"poisoned description denied at pin time: flagged={denied_report.flagged}, "
+        f"call refused: isError={denied_call['isError']}"
+    )
     print(f"same poisoned description approved on retry: approved={result['accepted_report'].approved}")
     print(f"zero-width smuggling flagged even though it renders clean: {result['zero_width_report'].flagged}")
-    print(f"rug pull across two lists: mutated={result['rugpull_report_2'].mutated}, call after mutation: isError={result['rugpull_call']['isError']}")
+    rugpull_2, rugpull_call = result["rugpull_report_2"], result["rugpull_call"]
+    print(
+        f"rug pull across two lists: mutated={rugpull_2.mutated}, "
+        f"call after mutation: isError={rugpull_call['isError']}"
+    )
     print()
 
 
 def _demo_tasks() -> None:
     print("=== 9. Durable async tasks: create, poll, retrieve, cancel ===")
     result = tasks.run_tasks_demo()
-    print(f"task receipt status: {result['receipt_status']}, poll 1: {result['poll_1_status']}, poll 2: {result['poll_2_status']}")
-    print(f"tasks/result content: {result['final_content']!r} (matches synchronous call: {result['final_content'] == result['sync_content']})")
-    print(f"cancel mid-flight: {result['cancelled_status']}, tasks/result still readable: isError={result['cancelled_result_isError']}")
+    print(
+        f"task receipt status: {result['receipt_status']}, poll 1: {result['poll_1_status']}, "
+        f"poll 2: {result['poll_2_status']}"
+    )
+    matches_sync = result["final_content"] == result["sync_content"]
+    print(f"tasks/result content: {result['final_content']!r} (matches synchronous call: {matches_sync})")
+    print(
+        f"cancel mid-flight: {result['cancelled_status']}, "
+        f"tasks/result still readable: isError={result['cancelled_result_isError']}"
+    )
     print(f"cancel of an already-terminal task rejected: {result['cancel_twice_raised']}")
     print(f"unknown taskId rejected: {result['unknown_task_raised']}")
     print(f"required-support tool called without 'task' rejected: {result['required_gate_raised']}")

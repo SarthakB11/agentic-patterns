@@ -22,8 +22,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from agentic_patterns import Provider, ToolCall, ToolRegistry, Message, get_provider
-
+from agentic_patterns import Message, Provider, ToolCall, ToolRegistry, get_provider
 from patterns.react.parser import ActionParseError, parse_action
 from patterns.react.scratchpad import Scratchpad, Step
 from patterns.react.text_loop import DEFAULT_FORCE_MESSAGE, FEW_SHOT_SYSTEM_PROMPT, _build_arguments, _prompt
@@ -102,7 +101,9 @@ class CompactingScratchpad:
         to_fold = self.pad.steps[: self.fold_count]
         remaining = self.pad.steps[self.fold_count :]
         rendered = "\n".join(f"Action: {s.action}[{s.action_input}] -> Observation: {s.observation}" for s in to_fold)
-        summary = provider.complete([Message.user(f"Steps to summarize:\n{rendered}")], system=COMPACTION_SYSTEM_PROMPT).content
+        summary_prompt = Message.user(f"Steps to summarize:\n{rendered}")
+        completion = provider.complete([summary_prompt], system=COMPACTION_SYSTEM_PROMPT)
+        summary = completion.content
         note = Step(thought="(compacted)", action="note", action_input="", observation=summary)
         self.pad.steps = [note, *remaining]
         self.compactions.append(CompactionEvent(self.fold_count, pre_size, self.size(), summary))

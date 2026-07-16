@@ -10,7 +10,6 @@ from __future__ import annotations
 import pytest
 
 from agentic_patterns import Completion, MockProvider
-
 from patterns.reflection import (
     adaptive_stop,
     generator_critic,
@@ -28,7 +27,6 @@ from patterns.reflection.multi_critic import CriticLens, make_multi_critic
 from patterns.reflection.prompting import make_critique, make_generate, make_refine
 from patterns.reflection.reasoning_critic import answers_agree, run_single_pass
 from patterns.reflection.sampled_verdict import make_sampled_critic
-
 
 # --- parse_critique edge cases ---------------------------------------------
 

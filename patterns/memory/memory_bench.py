@@ -32,7 +32,6 @@ from dataclasses import dataclass, field
 from typing import Literal
 
 from agentic_patterns import Embedder, Message, Provider, get_embedder, get_provider
-
 from patterns.memory.mem0_update import apply_candidate_fact
 from patterns.memory.retrieval import RetrievalConfig, retrieve
 from patterns.memory.semantic import SemanticMemory

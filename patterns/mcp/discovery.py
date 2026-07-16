@@ -101,7 +101,10 @@ def connect_discovered(record: dict[str, Any]) -> MCPClient:
     """
     launch = record["launch"]
     if launch["type"] != "stdio":
-        raise ValueError(f"connect_discovered only supports stdio launches in this offline demo; {record['name']!r} declares {launch['type']!r}")
+        raise ValueError(
+            f"connect_discovered only supports stdio launches in this offline demo; "
+            f"{record['name']!r} declares {launch['type']!r}"
+        )
     client = MCPClient(command=launch["command"], client_name=f"discovery-client:{record['name']}")
     client.connect()
     client.initialize()

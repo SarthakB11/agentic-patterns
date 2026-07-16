@@ -14,7 +14,6 @@ from __future__ import annotations
 from collections.abc import Callable
 
 from agentic_patterns import Message, Provider
-
 from patterns.reflection.loop import Critique, parse_critique
 
 

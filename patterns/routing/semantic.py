@@ -24,7 +24,6 @@ directly with synthetic scores instead of depending on embedder output.
 from __future__ import annotations
 
 from agentic_patterns import Embedder, cosine_similarity, get_embedder
-
 from patterns.routing.registry import Route, RouteDecision, RouteRegistry
 
 NO_MATCH_ROUTE = "no_match"
@@ -123,7 +122,10 @@ def classify_scores(scores: dict[str, float], *, threshold: float = DEFAULT_THRE
     best_score = scores[best_route]
     if best_score < threshold:
         return RouteDecision(
-            route=NO_MATCH_ROUTE, score=best_score, method="semantic", metadata={"scores": scores, "nearest": best_route}
+            route=NO_MATCH_ROUTE,
+            score=best_score,
+            method="semantic",
+            metadata={"scores": scores, "nearest": best_route},
         )
     return RouteDecision(route=best_route, score=best_score, method="semantic", metadata={"scores": scores})
 

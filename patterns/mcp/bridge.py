@@ -18,10 +18,11 @@ import sys
 
 from agentic_patterns import Message, ToolRegistry, get_provider, scripted_tool_call
 from agentic_patterns.core.tools import Tool
-
 from patterns.mcp.client import MCPClient
 
-SYSTEM_PROMPT = "You are a helpful assistant with access to arithmetic tools over MCP. Use them when asked to compute something."
+SYSTEM_PROMPT = (
+    "You are a helpful assistant with access to arithmetic tools over MCP. Use them when asked to compute something."
+)
 
 
 def register_mcp_tools(registry: ToolRegistry, client: MCPClient) -> list[str]:

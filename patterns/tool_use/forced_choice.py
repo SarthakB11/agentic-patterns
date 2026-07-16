@@ -19,8 +19,7 @@ what a provider without native `tool_choice` support requires:
 
 from __future__ import annotations
 
-from agentic_patterns import Message, ToolCall, get_provider
-
+from agentic_patterns import Message, MockProvider, ToolCall, get_provider
 from patterns.tool_use.catalog import SYSTEM_PROMPT, build_registry
 from patterns.tool_use.loop import run_tool_loop
 
@@ -58,7 +57,7 @@ def demo_none() -> None:
     question about policy rather than data.
     """
     registry = build_registry()
-    provider = get_provider(script=["2 + 2 is 4. No lookup needed for that one."])
+    provider = MockProvider(["2 + 2 is 4. No lookup needed for that one."])
     messages = [Message.user("Quick one, no need to look anything up: what's 2 + 2?")]
 
     result = run_tool_loop(provider, registry, messages, system=SYSTEM_PROMPT, offered_specs=[], max_iterations=1)
@@ -96,8 +95,8 @@ def demo_required() -> None:
 def demo_named() -> None:
     """A named forced choice: only get_weather's spec is offered, narrowing both intent and input size."""
     registry = build_registry()
-    provider = get_provider(
-        script=[
+    provider = MockProvider(
+        [
             {"tool": "get_weather", "args": {"city": "San Francisco"}},
             "San Francisco is 16C with fog right now.",
         ]

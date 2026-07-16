@@ -41,8 +41,16 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
 
-from agentic_patterns import Message, Provider, Tool, ToolCall, ToolRegistry, get_provider, scripted_tool_call
-
+from agentic_patterns import (
+    Message,
+    MockProvider,
+    Provider,
+    Tool,
+    ToolCall,
+    ToolRegistry,
+    get_provider,
+    scripted_tool_call,
+)
 from patterns.tool_use.catalog import SYSTEM_PROMPT, build_registry
 from patterns.tool_use.loop import validate_arguments
 from patterns.tool_use.schema import auto_tool
@@ -356,8 +364,8 @@ def run_recovery_loop(
 def demo_transient_retry() -> RecoveryLoopResult:
     """A transient failure recovers within budget: two failures then a success, all inside one model round trip."""
     registry = build_recovery_registry({"get_weather": ["transient", "transient"]})
-    provider = get_provider(
-        script=[
+    provider = MockProvider(
+        [
             scripted_tool_call("get_weather", {"city": "Tokyo"}),
             "Tokyo is 18C with light rain, after a couple of retried lookups.",
         ]
@@ -372,7 +380,10 @@ def demo_transient_retry() -> RecoveryLoopResult:
     print(f"  classification={attempt.classification} strategy={attempt.strategy} succeeded={attempt.succeeded}")
     print(f"  observation: {attempt.observation}")
     print(f"final: {result.final_answer}")
-    print(f"model round trips used: {len(provider.calls)} (retries happened inside recover_call, not as new round trips)")
+    print(
+        f"model round trips used: {len(provider.calls)} "
+        "(retries happened inside recover_call, not as new round trips)"
+    )
     print()
     return result
 

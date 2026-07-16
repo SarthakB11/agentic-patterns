@@ -14,7 +14,6 @@ list and is absent from the other.
 from __future__ import annotations
 
 from agentic_patterns import Embedder
-
 from patterns.rag.bm25 import BM25Index, bm25_retrieve
 from patterns.rag.chunking import Chunk, ScoredChunk
 from patterns.rag.dense import DenseIndex, dense_retrieve

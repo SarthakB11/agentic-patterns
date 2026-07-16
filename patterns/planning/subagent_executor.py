@@ -16,7 +16,6 @@ from collections.abc import Callable
 from dataclasses import dataclass
 
 from agentic_patterns import Message, Provider, ToolRegistry, get_provider
-
 from patterns.planning.parser import parse_plan
 from patterns.planning.plan import Plan, Step, StepResult, substitute_args
 from patterns.planning.validator import validate_plan
@@ -27,7 +26,10 @@ PLANNER_SYSTEM = (
     "own subagent."
 )
 
-SUBAGENT_SYSTEM = "You are a focused subagent with one job. Call the tool you were told to, then summarize the result in one sentence."
+SUBAGENT_SYSTEM = (
+    "You are a focused subagent with one job. Call the tool you were told to, "
+    "then summarize the result in one sentence."
+)
 
 SubagentFactory = Callable[[Step], Provider]
 

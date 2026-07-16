@@ -29,7 +29,6 @@ from __future__ import annotations
 from typing import Any
 
 from agentic_patterns import Message, get_provider
-
 from patterns.mcp.client import MCPClient
 
 SUMMARY_TEXT = "Errands and one project deadline: milk, a call to Grandma, and the MCP demo due Friday."

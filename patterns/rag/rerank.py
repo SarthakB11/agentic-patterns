@@ -23,7 +23,6 @@ rationale instead of only an order. `reasoning_rerank.py` is that sibling.
 from __future__ import annotations
 
 from agentic_patterns import Embedder, Message, Provider, get_embedder, get_provider
-
 from patterns.rag.chunking import ScoredChunk
 from patterns.rag.corpus import default_chunks
 from patterns.rag.dense import DenseIndex, build_dense_index, dense_retrieve
@@ -65,7 +64,9 @@ def parse_rerank_order(text: str) -> list[str]:
     return [part.strip() for part in ids_part.split(",") if part.strip()]
 
 
-def rerank_chunks(query: str, candidates: list[ScoredChunk], provider: Provider, *, top_k: int = 3) -> list[ScoredChunk]:
+def rerank_chunks(
+    query: str, candidates: list[ScoredChunk], provider: Provider, *, top_k: int = 3
+) -> list[ScoredChunk]:
     """Rerank a shortlist with a model call and return the top-k.
 
     Candidates the model's reply omits keep their original relative order

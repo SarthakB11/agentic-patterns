@@ -26,12 +26,12 @@ for the full curve and the safety-optimal, capacity-fitted threshold.
 
 from __future__ import annotations
 
+import contextlib
 import time
 from collections.abc import Callable
 from dataclasses import dataclass
 
 from agentic_patterns import ToolCall
-
 from patterns.human_in_the_loop.fake_tools import build_refund_registry
 from patterns.human_in_the_loop.gate import (
     AuditLog,
@@ -249,12 +249,11 @@ def run_flooding_demo() -> FloodingDemoResult:
     )
     clock_b = counting_clock()
     for request in _flood_of_requests():
-        try:
+        # The malicious request is blocked before it ever reaches the reviewer.
+        with contextlib.suppress(UnauthorizedDecisionError):
             run_tiered_gate(
                 request, registry_b, rubber_stamp_2, audit_b,
                 is_high_risk=always_high_risk, policy_guard=_policy_cap, clock=clock_b,
             )
-        except UnauthorizedDecisionError:
-            pass  # the malicious request is blocked before it ever reaches the reviewer
 
     return FloodingDemoResult(rubber_stamp_ledger=ledger_a, guarded_ledger=ledger_b, malicious_amount=50000.00)

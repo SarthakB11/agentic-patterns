@@ -16,7 +16,6 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from agentic_patterns import Message, Provider, ToolCall, ToolRegistry
-
 from patterns.planning.parser import parse_plan
 from patterns.planning.plan import Plan, Step, StepResult, is_error_observation, substitute_args
 from patterns.planning.validator import validate_plan

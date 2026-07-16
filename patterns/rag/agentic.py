@@ -24,7 +24,6 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 from agentic_patterns import Embedder, Message, Provider, Tool, ToolRegistry, get_embedder, get_provider
-
 from patterns.rag.chunking import Chunk, ScoredChunk
 from patterns.rag.corpus import default_chunks
 from patterns.rag.dense import DenseIndex, build_dense_index, dense_retrieve
@@ -68,7 +67,9 @@ class AgenticRagResult:
     answer: GroundedAnswer = field(default_factory=lambda: GroundedAnswer(answer=ABSTAIN_ANSWER, abstained=True))
 
 
-def build_search_tool(dense_index: DenseIndex, embedder: Embedder, *, top_k: int = 3) -> tuple[Tool, list[list[ScoredChunk]]]:
+def build_search_tool(
+    dense_index: DenseIndex, embedder: Embedder, *, top_k: int = 3
+) -> tuple[Tool, list[list[ScoredChunk]]]:
     """Build a `search_knowledge_base` tool backed by dense retrieval.
 
     Args:
@@ -136,7 +137,8 @@ def run_agentic_rag(
 
         messages.append(Message.assistant(completion.content, tool_calls=completion.tool_calls))
         for call in completion.tool_calls:
-            transcript.append(f"round {round_number}: tool call search_knowledge_base(query={call.arguments.get('query')!r})")
+            query_arg = call.arguments.get("query")
+            transcript.append(f"round {round_number}: tool call search_knowledge_base(query={query_arg!r})")
             observation = registry.execute(call)
             transcript.append(f"round {round_number}: observation -> {observation}")
             messages.append(Message.tool(call.id, observation))
@@ -145,7 +147,8 @@ def run_agentic_rag(
                 seen_chunks[scored.chunk.id] = scored.chunk
 
     transcript.append(f"stop: {max_rounds} rounds used without a final answer, abstaining")
-    return AgenticRagResult(transcript=transcript, rounds_used=max_rounds, answer=GroundedAnswer(answer=ABSTAIN_ANSWER, abstained=True))
+    abstain_answer = GroundedAnswer(answer=ABSTAIN_ANSWER, abstained=True)
+    return AgenticRagResult(transcript=transcript, rounds_used=max_rounds, answer=abstain_answer)
 
 
 def run_agentic_rag_demo(
@@ -184,8 +187,14 @@ def run_agentic_rag_demo(
     if provider is None:
         provider = get_provider(
             script=[
-                {"tool": "search_knowledge_base", "args": {"query": "rollback procedure for a deploy-caused SEV1 incident"}},
-                {"tool": "search_knowledge_base", "args": {"query": "aurora rollback command revert release stable minutes"}},
+                {
+                    "tool": "search_knowledge_base",
+                    "args": {"query": "rollback procedure for a deploy-caused SEV1 incident"},
+                },
+                {
+                    "tool": "search_knowledge_base",
+                    "args": {"query": "aurora rollback command revert release stable minutes"},
+                },
                 "The first mitigation step for a deploy-caused SEV1 is always a rollback, not a "
                 "forward fix [incident-runbook#1]. The on-call engineer runs `aurora rollback "
                 "release-id` to revert to the previous stable release, and this must complete "

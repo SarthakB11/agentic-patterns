@@ -21,7 +21,6 @@ from collections.abc import Callable
 from dataclasses import dataclass
 
 from agentic_patterns import MockProvider, Provider, get_provider
-
 from patterns.evaluation.aggregate import pass_rate
 from patterns.evaluation.eval_set import EvalCase, get_case
 from patterns.evaluation.meta import cohens_kappa

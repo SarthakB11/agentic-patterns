@@ -10,11 +10,11 @@ to format drift on a weaker model.
 from __future__ import annotations
 
 from agentic_patterns import get_provider
-
 from patterns.react.text_loop import ReactResult, run_react
 from patterns.react.world import build_registry
 
-ZERO_SHOT_SYSTEM_PROMPT = """You are a research agent that answers questions by alternating between reasoning and tool calls.
+ZERO_SHOT_SYSTEM_PROMPT = """You are a research agent that answers questions by alternating between reasoning \
+and tool calls.
 
 Use exactly this format, one Thought/Action pair per reply:
 Thought: <your reasoning about what to do next>

@@ -61,7 +61,6 @@ and are unaffected by that setting.
 from __future__ import annotations
 
 from agentic_patterns import Message, get_provider
-
 from patterns.routing import (
     cascade,
     escalation,
@@ -198,14 +197,29 @@ def main() -> None:
     frontier, tight_point, loose_point = threshold_sweep.run_threshold_sweep_demo()
     print("10. Threshold sweep: continuous score vs. a swept cost threshold")
     for p in frontier:
-        print(f"    t={p.t:<4} accuracy={p.accuracy:.3f} cost={p.cost:5.1f} strong_fraction={p.strong_fraction:.2f} flips={p.flips_from_previous}")
-    print(f"    tight budget (20.0) picks t={tight_point.t} (cost={tight_point.cost}); loose budget (50.0) picks t={loose_point.t} (cost={loose_point.cost})")
+        print(
+            f"    t={p.t:<4} accuracy={p.accuracy:.3f} cost={p.cost:5.1f} "
+            f"strong_fraction={p.strong_fraction:.2f} flips={p.flips_from_previous}"
+        )
+    print(
+        f"    tight budget (20.0) picks t={tight_point.t} (cost={tight_point.cost}); "
+        f"loose budget (50.0) picks t={loose_point.t} (cost={loose_point.cost})"
+    )
     print()
 
     accepted, escalated, abstained = verified_cascade.run_verified_cascade_demo()
     print("11. Verified cascade: model-judge escalation with abstention")
-    for label, d in (("accept-on-cheap", accepted), ("defer-then-accept-on-strong", escalated), ("defer-defer-abstain", abstained)):
-        print(f"    {label:28} route={d.route:6} attempts={d.attempts}  escalated={d.metadata['escalated']}  abstained={d.metadata['abstained']}  provider_calls={d.metadata['provider_calls']}")
+    cascade_results = (
+        ("accept-on-cheap", accepted),
+        ("defer-then-accept-on-strong", escalated),
+        ("defer-defer-abstain", abstained),
+    )
+    for label, d in cascade_results:
+        print(
+            f"    {label:28} route={d.route:6} attempts={d.attempts}  "
+            f"escalated={d.metadata['escalated']}  abstained={d.metadata['abstained']}  "
+            f"provider_calls={d.metadata['provider_calls']}"
+        )
     print()
 
     table, boundary, escalation_safety, reasoning_safety = robustness.run_robustness_demo()
@@ -213,7 +227,10 @@ def main() -> None:
     for router_name, per_query in table.items():
         avg = sum(per_query.values()) / len(per_query)
         print(f"    {router_name:15} avg_flip_rate={avg:.2f}")
-    print(f"    semantic boundary query flip_rate={boundary[0]:.2f}  far-from-boundary query flip_rate={boundary[1]:.2f}")
+    print(
+        f"    semantic boundary query flip_rate={boundary[0]:.2f}  "
+        f"far-from-boundary query flip_rate={boundary[1]:.2f}"
+    )
     print(f"    escalation safety invariant: {'passed' if escalation_safety.passed else 'FAILED'}")
     print(f"    reasoning-mode safety invariant: {'passed' if reasoning_safety.passed else 'FAILED'}")
     print()

@@ -11,8 +11,7 @@ refraining an unsafe draft.
 
 from __future__ import annotations
 
-from agentic_patterns import get_provider
-
+from agentic_patterns import MockProvider, get_provider
 from patterns.guardrails.core import Tripwire
 from patterns.guardrails.input_guards import LengthGuard, PromptInjectionGuard, TopicalAllowlistGuard
 from patterns.guardrails.output_guards import JSONSchemaGuard, ModerationGuard
@@ -40,7 +39,7 @@ def run_input_guard_demo() -> tuple[PipelineResult | None, PipelineResult, Pipel
     """
     print("=== Input guards: cheap checks run before the model is ever called ===")
 
-    injection_provider = get_provider(script=[])
+    injection_provider = MockProvider(script=[])
     injection_result: PipelineResult | None = None
     try:
         run_guarded(
@@ -52,14 +51,14 @@ def run_input_guard_demo() -> tuple[PipelineResult | None, PipelineResult, Pipel
         print(f"  prompt injection -> tripwire raised: {exc}")
         print(f"  model calls made: {len(injection_provider.calls)}")
 
-    topical_provider = get_provider(script=[])
+    topical_provider = MockProvider(script=[])
     topical_result = run_guarded(
         topical_provider, "Can you diagnose why my knee hurts?", input_guards=[TopicalAllowlistGuard()]
     )
     print(f"  off-topic request -> passed={topical_result.passed} stop_reason={topical_result.stop_reason}")
     print(f"  model calls made: {len(topical_provider.calls)}")
 
-    length_provider = get_provider(script=["Standard shipping takes 3-5 business days within the US."])
+    length_provider = MockProvider(script=["Standard shipping takes 3-5 business days within the US."])
     long_request = "Can you tell me about our shipping times? " + "It matters a lot to me, please. " * 5
     length_result = run_guarded(length_provider, long_request, input_guards=[LengthGuard(max_chars=80)])
     sent_length = len(length_provider.calls[0]["messages"][0].content)
@@ -77,7 +76,7 @@ def run_pii_masked_demo() -> PipelineResult:
         token rather than the raw email.
     """
     guard = PIIMaskGuard()
-    provider = get_provider(
+    provider = MockProvider(
         script=["I've located your account associated with [PII_EMAIL_1]; your refund posts by Friday."]
     )
     user_input = "My email is jane.doe@example.com and I'd like a refund status update."

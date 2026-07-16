@@ -14,12 +14,12 @@ decision and refuses late ones instead of running a stale approval.
 
 from __future__ import annotations
 
+import contextlib
 import time
 from collections.abc import Callable
 from dataclasses import dataclass
 
 from agentic_patterns import ToolCall, ToolRegistry
-
 from patterns.human_in_the_loop.fake_tools import build_refund_registry
 from patterns.human_in_the_loop.gate import (
     AuditLog,
@@ -220,8 +220,6 @@ def run_expired_demo() -> tuple[list, AuditLog]:
 
     state = suspend_at_gate(request, timeout_seconds=5.0, clock=counting_clock(start=2000.0))
     decision = Decision(kind="approve", reviewer="ops-lead-dana", reason="approved, just slow to respond")
-    try:
+    with contextlib.suppress(GateExpiredError):
         resume_gate(state, decision, registry, audit_log, clock=counting_clock(start=2500.0))
-    except GateExpiredError:
-        pass
     return ledger, audit_log

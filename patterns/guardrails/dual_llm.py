@@ -43,7 +43,6 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from agentic_patterns import Completion, Message, Provider, ToolCall, ToolRegistry, get_provider
-
 from patterns.guardrails.core import DecisionLog, GuardResult, OnFail, run_guard
 
 PLANNER_SYSTEM = (
@@ -115,7 +114,7 @@ class Tainted:
     provenance: frozenset[str]
     quarantined: bool = True
 
-    def combine(self, other: "Tainted") -> "Tainted":
+    def combine(self, other: Tainted) -> Tainted:
         """Concatenate with another value, unioning provenance and narrowing quarantine."""
         return Tainted(
             raw=f"{self.raw}{other.raw}",
@@ -124,7 +123,7 @@ class Tainted:
         )
 
 
-def _resolve_argument(value: Any, bindings: dict[str, "Tainted"]) -> "Tainted":
+def _resolve_argument(value: Any, bindings: dict[str, Tainted]) -> Tainted:
     """Resolve one plan argument: a literal, a "$var" reference, or a list of parts to combine."""
     if isinstance(value, list):
         parts = [_resolve_argument(v, bindings) for v in value]
@@ -186,7 +185,10 @@ class CapabilityPolicy:
                     passed=False,
                     action=OnFail.REFRAIN,
                     value=call,
-                    message=f"sink {call.name!r} blocked: argument {arg_name!r} carries raw tool output that never passed through quarantine",
+                    message=(
+                        f"sink {call.name!r} blocked: argument {arg_name!r} carries raw tool output "
+                        "that never passed through quarantine"
+                    ),
                 )
         return GuardResult(passed=True, action=OnFail.NOOP, value=call)
 
@@ -279,11 +281,15 @@ def run_dual_llm(
                 extracted = quarantine_extract(q_llm, source, field_name, field_type, log)
             except ExtractionError as exc:
                 executed.append(
-                    ExecutedStep(call.id, call.name, dict(call.arguments), None, frozenset(), blocked=True, message=str(exc))
+                    ExecutedStep(
+                        call.id, call.name, dict(call.arguments), None, frozenset(), blocked=True, message=str(exc)
+                    )
                 )
                 continue
             bindings[call.id] = extracted
-            executed.append(ExecutedStep(call.id, call.name, dict(call.arguments), str(extracted.raw), extracted.provenance))
+            executed.append(
+                ExecutedStep(call.id, call.name, dict(call.arguments), str(extracted.raw), extracted.provenance)
+            )
             continue
 
         arg_taint = {key: _resolve_argument(val, bindings) for key, val in call.arguments.items()}
@@ -380,7 +386,14 @@ def run_dual_llm_demo() -> tuple[DualLLMResult, DualLLMResult, DualLLMResult]:
         ),
         (
             "unquarantined tool text",
-            [_SEARCH_STEP, ToolCall(id="call_2", name="send_email", arguments={"to": "customer@example.com", "body": "$call_1"})],
+            [
+                _SEARCH_STEP,
+                ToolCall(
+                    id="call_2",
+                    name="send_email",
+                    arguments={"to": "customer@example.com", "body": "$call_1"},
+                ),
+            ],
             [],
         ),
     ]

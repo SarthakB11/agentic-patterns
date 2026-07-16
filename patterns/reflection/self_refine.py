@@ -19,7 +19,6 @@ Two demos live here:
 from __future__ import annotations
 
 from agentic_patterns import Provider, get_provider
-
 from patterns.reflection.loop import ReflectionResult, run_reflection_loop
 from patterns.reflection.prompting import make_critique, make_generate, make_refine
 

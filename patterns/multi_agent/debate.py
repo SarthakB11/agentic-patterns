@@ -21,7 +21,6 @@ from collections import Counter
 from dataclasses import dataclass, field
 
 from agentic_patterns import Message, Provider, get_provider
-
 from patterns.multi_agent.aggregation import normalize_answer
 
 DEBATER_SYSTEM = (
@@ -146,7 +145,11 @@ def run_debate_convergence_demo() -> DebateResult:
             ]
         ),
     }
-    return run_debate(agents, "A bat and a ball cost $1.10 in total. The bat costs $1.00 more than the ball. How much does the ball cost?")
+    question = (
+        "A bat and a ball cost $1.10 in total. The bat costs $1.00 more than the ball. "
+        "How much does the ball cost?"
+    )
+    return run_debate(agents, question)
 
 
 def run_debate_fallback_demo() -> DebateResult:

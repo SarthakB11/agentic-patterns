@@ -30,7 +30,6 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from agentic_patterns import ToolCall
-
 from patterns.guardrails.core import DecisionLog, GuardResult, OnFail, run_guard
 
 
@@ -58,7 +57,7 @@ class Predicate:
             return isinstance(value, str) and value.startswith(self.params["prefix"])
         raise ValueError(f"unknown predicate kind: {self.kind!r}")
 
-    def allowed_set_subset_of(self, other: "Predicate") -> bool:
+    def allowed_set_subset_of(self, other: Predicate) -> bool:
         """Whether every value this predicate allows is also allowed by `other`.
 
         Decides narrowing versus expansion by pure subset comparison over
@@ -96,7 +95,9 @@ class Rule:
         if call.name != self.tool_name:
             return False
         return all(
-            predicate.matches(call.arguments[arg]) for arg, predicate in self.arg_constraints.items() if arg in call.arguments
+            predicate.matches(call.arguments[arg])
+            for arg, predicate in self.arg_constraints.items()
+            if arg in call.arguments
         )
 
 
@@ -117,9 +118,15 @@ def evaluate(policy: Policy, call: ToolCall) -> GuardResult:
     for rule in policy.rules:
         if rule.matches(call):
             if rule.effect == "allow":
-                return GuardResult(passed=True, action=OnFail.NOOP, value=call, message=f"allowed by rule for {rule.tool_name!r}")
-            return GuardResult(passed=False, action=OnFail.REFRAIN, value=call, message=f"denied by rule for {rule.tool_name!r}")
-    return GuardResult(passed=False, action=OnFail.REFRAIN, value=call, message=f"no rule allows {call.name!r}: default deny")
+                return GuardResult(
+                    passed=True, action=OnFail.NOOP, value=call, message=f"allowed by rule for {rule.tool_name!r}"
+                )
+            return GuardResult(
+                passed=False, action=OnFail.REFRAIN, value=call, message=f"denied by rule for {rule.tool_name!r}"
+            )
+    return GuardResult(
+        passed=False, action=OnFail.REFRAIN, value=call, message=f"no rule allows {call.name!r}: default deny"
+    )
 
 
 @dataclass(frozen=True)
@@ -144,7 +151,8 @@ def classify_update(policy: Policy, update: PolicyUpdate) -> str:
         return "expansion"
     for arg, new_predicate in update.rule.arg_constraints.items():
         covered = any(
-            (old_rule.arg_constraints.get(arg) is not None and new_predicate.allowed_set_subset_of(old_rule.arg_constraints[arg]))
+            old_rule.arg_constraints.get(arg) is not None
+            and new_predicate.allowed_set_subset_of(old_rule.arg_constraints[arg])
             for old_rule in existing
         )
         if not covered:
@@ -179,15 +187,31 @@ def apply_update(
     replaced = Policy(rules=_replace_tool_rule(policy.rules, update.rule), default_effect=policy.default_effect)
 
     if classification == "narrowing":
-        log.record("policy_engine", GuardResult(passed=True, action=OnFail.FIX, value=update.rule, message="narrowing update auto-applied"))
+        log.record(
+            "policy_engine",
+            GuardResult(passed=True, action=OnFail.FIX, value=update.rule, message="narrowing update auto-applied"),
+        )
         return replaced
 
     approved = human_approve(update, classification) if human_approve is not None else False
     if approved:
-        log.record("policy_engine", GuardResult(passed=True, action=OnFail.FIX, value=update.rule, message="expansion update approved by human"))
+        log.record(
+            "policy_engine",
+            GuardResult(
+                passed=True, action=OnFail.FIX, value=update.rule, message="expansion update approved by human"
+            ),
+        )
         return replaced
 
-    log.record("policy_engine", GuardResult(passed=False, action=OnFail.REFRAIN, value=update.rule, message="expansion update denied; policy unchanged"))
+    log.record(
+        "policy_engine",
+        GuardResult(
+            passed=False,
+            action=OnFail.REFRAIN,
+            value=update.rule,
+            message="expansion update denied; policy unchanged",
+        ),
+    )
     return policy
 
 
@@ -207,7 +231,9 @@ def generate_policy_from_task(policy_json: str) -> Policy:
     rules = [
         Rule(
             tool_name=entry["tool"],
-            arg_constraints={a: Predicate(kind=s["kind"], params=s["params"]) for a, s in entry.get("arg_constraints", {}).items()},
+            arg_constraints={
+                a: Predicate(kind=s["kind"], params=s["params"]) for a, s in entry.get("arg_constraints", {}).items()
+            },
             effect=entry["effect"],
         )
         for entry in raw_rules
@@ -240,7 +266,14 @@ def run_policy_engine_demo() -> tuple[Policy, list[GuardResult]]:
         The final policy and every `evaluate` result made along the way.
     """
     log = DecisionLog()
-    policy = Policy(rules=[Rule(tool_name="issue_refund", arg_constraints={"amount": Predicate("in_range", {"low": 0, "high": 100})})])
+    policy = Policy(
+        rules=[
+            Rule(
+                tool_name="issue_refund",
+                arg_constraints={"amount": Predicate("in_range", {"low": 0, "high": 100})},
+            )
+        ]
+    )
     guard = PolicyGuard(policy)
 
     print("=== Policy engine: declarative privilege control with monotonic narrowing ===")
@@ -255,14 +288,20 @@ def run_policy_engine_demo() -> tuple[Policy, list[GuardResult]]:
         print(f"  {label} -> passed={result.passed}: {result.message}")
         results.append(result)
 
-    narrow_update = PolicyUpdate(rule=Rule(tool_name="issue_refund", arg_constraints={"amount": Predicate("in_range", {"low": 0, "high": 50})}))
+    narrow_update = PolicyUpdate(
+        rule=Rule(tool_name="issue_refund", arg_constraints={"amount": Predicate("in_range", {"low": 0, "high": 50})})
+    )
     print(f"  update: tighten amount to <=50 -> classified {classify_update(policy, narrow_update)!r}")
     policy = guard.policy = apply_update(policy, narrow_update, log)
     result = run_guard(guard, ToolCall(id="c4", name="issue_refund", arguments={"amount": 75}), log)
     print(f"  issue_refund(amount=75) after narrowing -> passed={result.passed}: {result.message}")
     results.append(result)
 
-    expand_update = PolicyUpdate(rule=Rule(tool_name="issue_refund", arg_constraints={"amount": Predicate("in_range", {"low": 0, "high": 500})}))
+    expand_update = PolicyUpdate(
+        rule=Rule(
+            tool_name="issue_refund", arg_constraints={"amount": Predicate("in_range", {"low": 0, "high": 500})}
+        )
+    )
     print(f"  update: widen amount to <=500 -> classified {classify_update(policy, expand_update)!r}")
     policy = guard.policy = apply_update(policy, expand_update, log, human_approve=lambda u, c: False)
     result = run_guard(guard, ToolCall(id="c5", name="issue_refund", arguments={"amount": 200}), log)
@@ -270,11 +309,18 @@ def run_policy_engine_demo() -> tuple[Policy, list[GuardResult]]:
     results.append(result)
 
     llm_policy_json = json.dumps(
-        [{"tool": "delete_account", "effect": "deny"}, {"tool": "issue_refund", "effect": "allow"}, {"tool": "delete_account", "effect": "allow"}]
+        [
+            {"tool": "delete_account", "effect": "deny"},
+            {"tool": "issue_refund", "effect": "allow"},
+            {"tool": "delete_account", "effect": "allow"},
+        ]
     )
     llm_guard = PolicyGuard(generate_policy_from_task(llm_policy_json), name="llm_authored_policy")
     result = run_guard(llm_guard, ToolCall(id="c6", name="delete_account", arguments={"user_id": "u2"}), log)
-    print(f"  LLM policy tries to allow delete_account, but the hard deny rule is checked first -> passed={result.passed}: {result.message}")
+    print(
+        "  LLM policy tries to allow delete_account, but the hard deny rule is checked first -> "
+        f"passed={result.passed}: {result.message}"
+    )
     results.append(result)
 
     return policy, results

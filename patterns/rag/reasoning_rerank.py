@@ -30,7 +30,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from agentic_patterns import Embedder, Message, Provider, get_embedder, get_provider
-
 from patterns.rag.chunking import ScoredChunk
 from patterns.rag.corpus import default_chunks
 from patterns.rag.dense import DenseIndex, build_dense_index, dense_retrieve
@@ -106,7 +105,8 @@ def reasoning_rerank(
     """
     judgments: list[RerankJudgment] = []
     for candidate in candidates:
-        completion = provider.complete([Message.user(build_pointwise_prompt(query, candidate))], system=_POINTWISE_SYSTEM)
+        prompt = build_pointwise_prompt(query, candidate)
+        completion = provider.complete([Message.user(prompt)], system=_POINTWISE_SYSTEM)
         grade = parse_relevance_grade(completion.content)
         judgments.append(RerankJudgment(chunk_id=candidate.chunk.id, grade=grade, rationale=completion.reasoning))
 
@@ -166,7 +166,9 @@ def run_reasoning_rerank_demo(
                 },
                 {
                     "content": "The passage is about GDPR deletion requests, not invoice disputes.\nRELEVANCE: 1",
-                    "reasoning": "Data-retention topic; shares only generic customer-request phrasing with the question.",
+                    "reasoning": (
+                        "Data-retention topic; shares only generic customer-request phrasing with the question."
+                    ),
                 },
                 {
                     "content": "This describes proration credits on upgrade, which is billing-adjacent but not "

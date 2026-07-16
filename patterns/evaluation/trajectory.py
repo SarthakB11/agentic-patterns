@@ -16,7 +16,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from agentic_patterns import Message, Provider, get_provider
-
 from patterns.evaluation.eval_set import get_case
 from patterns.evaluation.pointwise import build_pointwise_judge
 from patterns.evaluation.verdict import Verdict, parse_pointwise_verdict
@@ -81,7 +80,10 @@ def run_trajectory_grounded_demo(provider: Provider | None = None) -> Verdict:
         ),
         TrajectoryStep("issue the refund", "refund of $49.99 issued to the original payment method"),
     ]
-    final_answer = "Verified order 48213 was delivered and damaged (photo confirmed); refund of $49.99 issued per policy."
+    final_answer = (
+        "Verified order 48213 was delivered and damaged (photo confirmed); "
+        "refund of $49.99 issued per policy."
+    )
     if provider is None:
         provider = get_provider(
             script=[

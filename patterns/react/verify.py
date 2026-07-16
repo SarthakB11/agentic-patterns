@@ -23,8 +23,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from agentic_patterns import Provider, ToolCall, ToolRegistry, Message, get_provider
-
+from agentic_patterns import Message, Provider, ToolCall, ToolRegistry, get_provider
 from patterns.react.parser import ActionParseError, parse_action
 from patterns.react.scratchpad import Scratchpad, Step
 from patterns.react.text_loop import DEFAULT_FORCE_MESSAGE, FEW_SHOT_SYSTEM_PROMPT, _build_arguments, _prompt
@@ -105,11 +104,14 @@ def run_react_with_verification(
             continue
 
         if parsed.is_finish:
+            assert parsed.final_answer is not None, "parse_action sets final_answer whenever is_finish is True"
             verify_calls += 1
             prompt = _verify_prompt(goal, scratchpad, parsed.final_answer)
             verdict = provider.complete([Message.user(prompt)], system=verifier_system_prompt).content.strip()
             if verdict.upper().startswith("ACCEPT"):
-                return VerifyResult(parsed.final_answer, scratchpad, step_num, "finish", reject_cycles == 0, verify_calls)
+                return VerifyResult(
+                    parsed.final_answer, scratchpad, step_num, "finish", reject_cycles == 0, verify_calls
+                )
             reason = verdict.split(":", 1)[1].strip() if ":" in verdict else verdict
             reject_cycles += 1
             scratchpad.add(

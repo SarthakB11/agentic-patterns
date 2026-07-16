@@ -53,9 +53,19 @@ embedder through `agentic_patterns.get_embedder`.
 from __future__ import annotations
 
 from agentic_patterns import Provider, get_embedder, get_provider
-
-from patterns.rag import agentic, contextual, deep_research, grading, graph_rag, order_preserve, pipeline, query_transform, reasoning_rerank, rerank
-from patterns.rag.bm25 import build_bm25_index, bm25_retrieve
+from patterns.rag import (
+    agentic,
+    contextual,
+    deep_research,
+    grading,
+    graph_rag,
+    order_preserve,
+    pipeline,
+    query_transform,
+    reasoning_rerank,
+    rerank,
+)
+from patterns.rag.bm25 import bm25_retrieve, build_bm25_index
 from patterns.rag.chunking import ScoredChunk
 from patterns.rag.corpus import DOCUMENTS, default_chunks
 from patterns.rag.dense import build_dense_index, dense_retrieve
@@ -183,8 +193,10 @@ def main() -> None:
         dense_index=dense_index, embedder=embedder
     )
     print(f"  query: {suff_query}")
-    print(f"  narrow fetch {[c.id for c in narrow]}: sufficient={narrow_verdict.sufficient} ({narrow_verdict.reasoning})")
-    print(f"  widened fetch {[c.id for c in wide]}: sufficient={wide_verdict.sufficient} ({wide_verdict.reasoning})")
+    narrow_ids = [c.id for c in narrow]
+    wide_ids = [c.id for c in wide]
+    print(f"  narrow fetch {narrow_ids}: sufficient={narrow_verdict.sufficient} ({narrow_verdict.reasoning})")
+    print(f"  widened fetch {wide_ids}: sufficient={wide_verdict.sufficient} ({wide_verdict.reasoning})")
     print()
 
     # 9b. Grading: relevance threshold and the abstain path -----------------
@@ -216,11 +228,19 @@ def main() -> None:
     print("=== 12. Graph RAG: local two-hop win, global map-reduce, skeptic no-benefit ===")
     graph_result = graph_rag.run_graph_rag_demo(dense_index=dense_index, embedder=embedder)
     local_win = graph_rag.graph_adds_value(graph_result.local_result.chunk_ids, graph_result.local_flat_baseline)
-    skeptic_win = graph_rag.graph_adds_value(graph_result.skeptic_result.chunk_ids, graph_result.skeptic_flat_baseline)
-    print(f"  local search chunks: {graph_result.local_result.chunk_ids} (flat top-1: {graph_result.local_flat_baseline})")
+    skeptic_win = graph_rag.graph_adds_value(
+        graph_result.skeptic_result.chunk_ids, graph_result.skeptic_flat_baseline
+    )
+    print(
+        f"  local search chunks: {graph_result.local_result.chunk_ids} "
+        f"(flat top-1: {graph_result.local_flat_baseline})"
+    )
     print(f"  local search adds value over flat retrieval: {local_win}")
     print(f"  global answer: {graph_result.global_result.answer.answer}")
-    print(f"  skeptic search chunks: {graph_result.skeptic_result.chunk_ids} (flat: {graph_result.skeptic_flat_baseline})")
+    print(
+        f"  skeptic search chunks: {graph_result.skeptic_result.chunk_ids} "
+        f"(flat: {graph_result.skeptic_flat_baseline})"
+    )
     print(f"  skeptic search adds value over flat retrieval: {skeptic_win}")
     print()
 
@@ -232,7 +252,8 @@ def main() -> None:
     print(f"  query: {rr_query}")
     print(f"  before rerank (dense order): {[sc.chunk.id for sc in rr_before]}")
     print(f"  after rerank (graded, reasoned order): {[sc.chunk.id for sc in rr_after]}")
-    print(f"  top judgment: [{rr_judgments[0].chunk_id}] grade={rr_judgments[0].grade} because: {rr_judgments[0].rationale}")
+    top_judgment = rr_judgments[0]
+    print(f"  top judgment: [{top_judgment.chunk_id}] grade={top_judgment.grade} because: {top_judgment.rationale}")
     print()
 
     # 14. Order-preserving assembly and the k sweep -------------------------

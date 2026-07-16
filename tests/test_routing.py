@@ -10,7 +10,6 @@ from __future__ import annotations
 import pytest
 
 from agentic_patterns import Message, MockProvider, get_provider
-
 from patterns.routing import (
     cascade,
     escalation,

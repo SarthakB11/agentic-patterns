@@ -62,7 +62,7 @@ def is_sensitive(text: str, policy: EscalationPolicy) -> bool:
     return any(keyword in lowered for keyword in policy.sensitive_keywords)
 
 
-def apply_escalation(decision: RouteDecision, text: str, policy: EscalationPolicy = EscalationPolicy()) -> RouteDecision:
+def apply_escalation(decision: RouteDecision, text: str, policy: EscalationPolicy | None = None) -> RouteDecision:
     """Override `decision` to human escalation if it fails the policy.
 
     Sensitive topics escalate even when `decision.score` is high, since a
@@ -73,8 +73,11 @@ def apply_escalation(decision: RouteDecision, text: str, policy: EscalationPolic
     Args:
         decision: The upstream classifier's decision.
         text: The original input, checked for sensitive-topic keywords.
-        policy: Threshold and keyword list to apply.
+        policy: Threshold and keyword list to apply. Defaults to
+            `EscalationPolicy()`, built fresh per call rather than as a
+            mutable default argument.
     """
+    policy = policy or EscalationPolicy()
     sensitive = is_sensitive(text, policy)
     below_threshold = decision.score is None or decision.score < policy.threshold
     if not sensitive and not below_threshold:

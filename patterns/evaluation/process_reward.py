@@ -28,7 +28,6 @@ from dataclasses import dataclass
 from typing import Literal
 
 from agentic_patterns import Message, Provider, get_provider
-
 from patterns.evaluation.eval_set import get_case
 from patterns.evaluation.trajectory import TrajectoryStep
 from patterns.evaluation.verdict import parse_pointwise_verdict

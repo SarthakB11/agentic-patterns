@@ -8,7 +8,6 @@ no API key.
 from __future__ import annotations
 
 from agentic_patterns import HashEmbedder, Message, MockProvider, Tool, ToolRegistry
-
 from patterns.memory.assembler import assemble_context
 from patterns.memory.episodic import EpisodicMemory
 from patterns.memory.file_memory import FileMemoryStore
@@ -50,7 +49,6 @@ from patterns.memory.write_policy import (
     extract_facts,
     hot_path_write,
 )
-
 
 # --- short-term memory: modes ----------------------------------------------
 
@@ -729,7 +727,7 @@ def test_sleep_time_amortization_gap_grows_with_query_count() -> None:
 
     def make_report(n: int):
         queries = [f"query {i}" for i in range(n)]
-        covered = {q: True for q in queries}
+        covered = dict.fromkeys(queries, True)
         script = ["sleep pass"] + ["derive", "answer"] * n + ["answer"] * n
         provider = MockProvider(script=script)
         return run_sleep_time_pipeline(provider, context, queries, covered)

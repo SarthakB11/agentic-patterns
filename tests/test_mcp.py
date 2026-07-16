@@ -16,7 +16,6 @@ import urllib.error
 import pytest
 
 from agentic_patterns import Message, MockProvider, ToolRegistry, scripted_tool_call
-
 from patterns.mcp import (
     bridge,
     discovery,

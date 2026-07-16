@@ -13,7 +13,6 @@ from __future__ import annotations
 from typing import Any
 
 from agentic_patterns import Message, ToolRegistry, get_provider, scripted_tool_call
-
 from patterns.tool_use.loop import validate_arguments
 from patterns.tool_use.schema import auto_tool
 

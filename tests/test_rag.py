@@ -10,10 +10,9 @@ from __future__ import annotations
 import pytest
 
 from agentic_patterns import Completion, HashEmbedder, MockProvider
-
 from patterns.rag.agentic import run_agentic_rag, run_agentic_rag_demo
 from patterns.rag.assembly import assemble_context, deduplicate, edge_order, fit_to_budget
-from patterns.rag.bm25 import build_bm25_index, bm25_retrieve, tokenize
+from patterns.rag.bm25 import bm25_retrieve, build_bm25_index, tokenize
 from patterns.rag.chunking import Chunk, Document, ScoredChunk, chunk_document
 from patterns.rag.contextual import build_contextual_index, run_contextual_demo
 from patterns.rag.corpus import default_chunks
@@ -38,7 +37,6 @@ from patterns.rag.pipeline import answer_question, run_abstain_demo, run_hybrid_
 from patterns.rag.query_transform import parse_multi_queries, run_hyde_demo, run_multi_query_demo
 from patterns.rag.reasoning_rerank import reasoning_rerank, run_reasoning_rerank_demo
 from patterns.rag.rerank import parse_rerank_order, rerank_chunks, run_rerank_demo
-
 
 # --- chunking ---------------------------------------------------------------
 

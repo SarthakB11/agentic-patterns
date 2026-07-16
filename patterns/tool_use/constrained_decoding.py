@@ -145,7 +145,7 @@ class MaskStep:
     """One generation step's masking record.
 
     Attributes:
-        field: The grammar state's field name.
+        field_name: The grammar state's field name.
         ranked_candidates: The full ranked preference list offered this step.
         legal: The subset of `ranked_candidates` the mask allowed, in the
             same relative order.
@@ -155,7 +155,7 @@ class MaskStep:
             emitted.
     """
 
-    field: str
+    field_name: str
     ranked_candidates: list[str]
     legal: list[str] = field(default_factory=list)
     blocked: list[str] = field(default_factory=list)
@@ -253,7 +253,10 @@ def demo_constrained_decoding() -> tuple[dict[str, Any], list[MaskStep]]:
     print("=== 12. Constrained decoding: schema-grammar token masking ===")
     print(f"schema: {CONVERT_SCHEMA['properties']}")
     for step in steps:
-        print(f"  field={step.field}: ranked={step.ranked_candidates} blocked={step.blocked} emitted={step.emitted!r}")
+        print(
+            f"  field={step.field_name}: ranked={step.ranked_candidates} "
+            f"blocked={step.blocked} emitted={step.emitted!r}"
+        )
     print(f"masked call:   {masked_arguments} (validate_arguments errors: {masked_errors or 'none'})")
     print(f"unmasked call: {unmasked_arguments} (validate_arguments errors: {unmasked_errors})")
     print(f"tokens blocked: {total_blocked}, enum legal-sets precomputed at compile time: {grammar.precheck_count}")

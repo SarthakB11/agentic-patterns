@@ -109,7 +109,10 @@ def main() -> None:
     sampled_result, sample_log = sampled_verdict.run_sampled_verdict_demo()
     print("7. Sampled-verdict judging: one critic sampled 3 times per round")
     for round_index, scores in enumerate(sample_log, start=1):
-        print(f"   round {round_index} samples: {scores} -> median {sorted(scores)[len(scores) // 2]:g}")
+        scored = [score for score in scores if score is not None]
+        assert len(scored) == len(scores), "sampled-verdict demo script always scores every sample"
+        sorted_scores = sorted(scored)
+        print(f"   round {round_index} samples: {scores} -> median {sorted_scores[len(sorted_scores) // 2]:g}")
     print(f"   stopped: {sampled_result.stop_reason} after {len(sampled_result.iterations)} round(s), "
           f"final answer: {sampled_result.final_draft[:60]!r}...")
     print()

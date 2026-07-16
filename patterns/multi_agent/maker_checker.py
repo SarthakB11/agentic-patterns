@@ -95,7 +95,10 @@ def run_maker_checker(
     feedback = ""
 
     for attempt_index in range(1, max_attempts + 1):
-        prompt = task if attempt_index == 1 else f"{task}\n\nChecker feedback on your previous attempt:\n{feedback}\nRevise your work."
+        if attempt_index == 1:
+            prompt = task
+        else:
+            prompt = f"{task}\n\nChecker feedback on your previous attempt:\n{feedback}\nRevise your work."
         output = maker.complete([Message.user(prompt)], system=MAKER_SYSTEM).content
         attempts.append(output)
 
@@ -105,7 +108,10 @@ def run_maker_checker(
             return MakerCheckerResult(attempts, checks, True, output, "approved")
         feedback = check.feedback
 
-    final = fallback if fallback is not None else "Escalated for manual review: automatic revision did not converge within budget."
+    if fallback is not None:
+        final = fallback
+    else:
+        final = "Escalated for manual review: automatic revision did not converge within budget."
     return MakerCheckerResult(attempts, checks, False, final, "cap_reached")
 
 
@@ -170,5 +176,8 @@ def run_cap_demo() -> MakerCheckerResult:
         checker,
         task,
         max_attempts=2,
-        fallback="Escalated to legal for manual review: automatic drafting did not reach a compliant summary within budget.",
+        fallback=(
+            "Escalated to legal for manual review: automatic drafting did not reach "
+            "a compliant summary within budget."
+        ),
     )

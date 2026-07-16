@@ -32,7 +32,9 @@ def format_decision(decision: RouteDecision, *, title: str, input_text: str | No
     if input_text is not None:
         lines.append(f"input: {_snippet(input_text)}")
     score_text = "none" if decision.score is None else f"{decision.score:.3f}"
-    lines.append(f"route: {decision.route}  (method={decision.method}, score={score_text}, attempts={decision.attempts})")
+    lines.append(
+        f"route: {decision.route}  (method={decision.method}, score={score_text}, attempts={decision.attempts})"
+    )
     for key, value in decision.metadata.items():
         lines.append(f"  {key}: {value}")
     return "\n".join(lines)

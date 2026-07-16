@@ -70,7 +70,6 @@ from __future__ import annotations
 import argparse
 
 from agentic_patterns import ToolCall
-
 from patterns.human_in_the_loop import (
     approval_gate,
     approval_memory,
@@ -85,7 +84,7 @@ from patterns.human_in_the_loop import (
     risk_classifier,
     risk_tier,
 )
-from patterns.human_in_the_loop.gate import AuditLog, ReviewRequest, run_gate
+from patterns.human_in_the_loop.gate import AuditLog, GateOutcome, ReviewRequest, run_gate
 from patterns.human_in_the_loop.interactive import InteractiveDecisionSource
 from patterns.human_in_the_loop.transcript import format_audit_log, format_outcome
 
@@ -108,6 +107,7 @@ def main(argv: list[str] | None = None) -> None:
 
     print("=== 1. Approval gate: approve ===")
     result = approval_gate.run_approve_demo()
+    assert result.outcome is not None, "approve is a valid decision kind and must produce an outcome"
     print(f"task: {result.task}")
     print(f"proposed: send_refund({result.proposed_arguments})")
     print(format_outcome(result.outcome))
@@ -117,6 +117,7 @@ def main(argv: list[str] | None = None) -> None:
 
     print("=== 1b. Approval gate: edit ===")
     result = approval_gate.run_edit_demo()
+    assert result.outcome is not None, "edit is a valid decision kind and must produce an outcome"
     print(f"proposed: send_refund({result.proposed_arguments})")
     print(format_outcome(result.outcome))
     print(f"final arguments used: {result.outcome.final_arguments}")
@@ -125,6 +126,7 @@ def main(argv: list[str] | None = None) -> None:
 
     print("=== 1c. Approval gate: reject ===")
     result = approval_gate.run_reject_demo()
+    assert result.outcome is not None, "reject is a valid decision kind and must produce an outcome"
     print(f"proposed: send_refund({result.proposed_arguments})")
     print(format_outcome(result.outcome))
     print(f"agent: {result.follow_up}")
@@ -133,6 +135,7 @@ def main(argv: list[str] | None = None) -> None:
 
     print("=== 1d. Approval gate: respond (ask-the-human) ===")
     result = approval_gate.run_respond_demo()
+    assert result.outcome is not None, "respond is a valid decision kind and must produce an outcome"
     print(f"proposed: lookup_customer_tier({result.proposed_arguments})")
     print(format_outcome(result.outcome))
     assert not result.ledger, "respond must not execute a side effect"
@@ -161,7 +164,10 @@ def main(argv: list[str] | None = None) -> None:
     malicious_blocked = any(
         e["amount_usd"] == flood_result.malicious_amount for e in flood_result.guarded_ledger
     )
-    print(f"no policy backstop, rubber-stamping reviewer: malicious ${flood_result.malicious_amount:,.2f} refund sent = {malicious_slipped_through}")
+    print(
+        f"no policy backstop, rubber-stamping reviewer: malicious "
+        f"${flood_result.malicious_amount:,.2f} refund sent = {malicious_slipped_through}"
+    )
     print(f"with a deterministic policy cap in front of the gate: same refund sent = {malicious_blocked}")
     assert malicious_slipped_through is True
     assert malicious_blocked is False
@@ -233,7 +239,7 @@ def main(argv: list[str] | None = None) -> None:
     batch_outcomes, batch_ledger = batched.run_batched_review_demo()
     for request_id in ("batch-1", "batch-2", "batch-3"):
         outcome = batch_outcomes[request_id]
-        rendered = format_outcome(outcome) if hasattr(outcome, "kind") else str(outcome)
+        rendered = format_outcome(outcome) if isinstance(outcome, GateOutcome) else outcome
         print(f"{request_id}: {rendered}")
     assert len(batch_ledger) == 2  # batch-3 was rejected, so only 1 and 2 sent
     print()
@@ -271,7 +277,8 @@ def main(argv: list[str] | None = None) -> None:
     print("=== 11. Mandatory oversight (EU AI Act Article 14) ===")
     mandatory_outcome, oversight_log = mandatory_oversight.run_non_overridable_demo()
     print(f"in-set action, permissive shortcut ignored: {format_outcome(mandatory_outcome)}")
-    print(f"oversight capability recorded: {oversight_log.records[0].could_override and oversight_log.records[0].could_stop}")
+    first_record = oversight_log.records[0]
+    print(f"oversight capability recorded: {first_record.could_override and first_record.could_stop}")
     quorum_outcome, bio_ledger = mandatory_oversight.run_two_person_demo()
     print(f"two-person biometric quorum: {format_outcome(quorum_outcome)}")
     assert len(bio_ledger) == 1

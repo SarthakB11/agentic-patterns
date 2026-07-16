@@ -18,7 +18,6 @@ import time
 from collections.abc import Callable, Mapping
 
 from agentic_patterns import ToolCall, ToolRegistry
-
 from patterns.human_in_the_loop.fake_tools import build_refund_registry
 from patterns.human_in_the_loop.gate import (
     AuditLog,
@@ -108,7 +107,9 @@ def run_batched_review_demo() -> tuple[dict[str, GateOutcome | str], list]:
             kind="reject", reviewer="ops-lead-dana",
             reason="dispute is with the carrier, not us; route to the shipping claims team instead",
         ),
-        "batch-1": Decision(kind="approve", reviewer="ops-lead-dana", reason="photo evidence attached, straightforward"),
+        "batch-1": Decision(
+            kind="approve", reviewer="ops-lead-dana", reason="photo evidence attached, straightforward"
+        ),
         "batch-2": Decision(
             kind="edit", reviewer="ops-lead-dana", reason="tracking shows partial delivery, not a full loss",
             arguments={"customer_id": "c-3002", "amount_usd": 130.00, "reason": "partial non-delivery, prorated"},

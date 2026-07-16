@@ -13,7 +13,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from agentic_patterns import Embedder, Provider, get_embedder, get_provider
-
 from patterns.rag.assembly import assemble_context
 from patterns.rag.bm25 import BM25Index, bm25_retrieve, build_bm25_index
 from patterns.rag.chunking import Chunk, ScoredChunk
@@ -103,10 +102,7 @@ def answer_question(
     else:
         kept, dropped = grade_relevance(candidates, threshold=relevance_threshold)
 
-    if rerank and kept:
-        kept = rerank_chunks(query, kept, provider, top_k=top_k)
-    else:
-        kept = kept[:top_k]
+    kept = rerank_chunks(query, kept, provider, top_k=top_k) if rerank and kept else kept[:top_k]
 
     if not kept:
         return RagResult(
@@ -140,7 +136,9 @@ def _build_indexes() -> tuple[DenseIndex, BM25Index]:
 
 
 _NAIVE_DEMO_QUERY = "What is the first mitigation step for a SEV1 incident caused by a recent deploy?"
-_ADVANCED_DEMO_QUERY = "What does Aurora do automatically for a customer who upgrades mid cycle, and who handles invoice disputes?"
+_ADVANCED_DEMO_QUERY = (
+    "What does Aurora do automatically for a customer who upgrades mid cycle, and who handles invoice disputes?"
+)
 _ABSTAIN_DEMO_QUERY = "xylophone quokka marmalade skateboard umbrella"
 
 

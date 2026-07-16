@@ -30,7 +30,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from dataclasses import dataclass
 
-from agentic_patterns import Message, Provider, get_provider
+from agentic_patterns import Message, MockProvider, Provider, get_provider
 
 ACTION_SELECTOR_SYSTEM = (
     "You are an action selector for a support bot. Given the user's request, reply with "
@@ -63,7 +63,7 @@ class ActionSelectorResult:
 
 
 def run_action_selector(
-    provider: Provider,
+    provider: MockProvider,
     user_request: str,
     actions: dict[str, Callable[[], str]],
     *,
@@ -77,8 +77,13 @@ def run_action_selector(
     returns is fed back to the model, so there is no second call for an
     injected tool result to reach.
 
+    Takes a `MockProvider` specifically, not the general `Provider`
+    interface: this function's result reports `model_calls` and
+    `saw_tool_observation`, both read from the mock's scripted call
+    record, which only `MockProvider` keeps.
+
     Args:
-        provider: Model that plays the selector. Called exactly once.
+        provider: Mock model that plays the selector. Called exactly once.
         user_request: The trusted user request to classify.
         actions: Label to a zero-argument callable performing the action.
         default_label: Action to run when the model's label is unknown.
@@ -176,7 +181,9 @@ def run_context_minimization(
 
     raw_request_leaked = any(raw_request in m.content for m in second_messages)
 
-    return ContextMinimizationResult(intent=intent, final_response=response.content, raw_request_leaked=raw_request_leaked)
+    return ContextMinimizationResult(
+        intent=intent, final_response=response.content, raw_request_leaked=raw_request_leaked
+    )
 
 
 def run_action_selector_demo() -> tuple[ActionSelectorResult, ActionSelectorResult]:
@@ -196,7 +203,7 @@ def run_action_selector_demo() -> tuple[ActionSelectorResult, ActionSelectorResu
         "unknown": lambda: "sorry, I can only help with order status or refund policy questions",
     }
 
-    provider = get_provider(script=["check_order_status", "unknown"])
+    provider = MockProvider(script=["check_order_status", "unknown"])
     clean = run_action_selector(provider, "What is the status of my order?", actions)
 
     injected_request = (

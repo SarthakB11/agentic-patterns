@@ -63,12 +63,18 @@ def _tool_echo_if_sampling(arguments: dict[str, Any], capabilities: set[str]) ->
     return [{"type": "text", "text": f"echo: {arguments.get('text', '')}"}], False
 
 
+_ADD_INPUT_SCHEMA: dict[str, Any] = {
+    "type": "object",
+    "properties": {"a": {"type": "number"}, "b": {"type": "number"}},
+    "required": ["a", "b"],
+}
+
 _STATELESS_TOOLS: dict[str, tuple[dict[str, Any], ToolHandler]] = {
     "add": (
         {
             "name": "add",
             "description": "Add two numbers and return the sum.",
-            "inputSchema": {"type": "object", "properties": {"a": {"type": "number"}, "b": {"type": "number"}}, "required": ["a", "b"]},
+            "inputSchema": _ADD_INPUT_SCHEMA,
         },
         _tool_add,
     ),
@@ -127,8 +133,11 @@ def handle_stateless(message: dict[str, Any]) -> dict[str, Any] | None:
         )
 
     if method == "server/discover":
+        # `message["id"]`, not `msg_id`: every branch below this point is
+        # only reached on the request path (the notification checks above
+        # already returned), so `id` is always present per the JSON-RPC shape.
         return jsonrpc.build_response(
-            msg_id,
+            message["id"],
             {
                 "capabilities": STATELESS_SERVER_CAPABILITIES,
                 "serverInfo": {"name": "agentic-patterns-stateless-server", "version": "0.1.0"},
@@ -136,16 +145,18 @@ def handle_stateless(message: dict[str, Any]) -> dict[str, Any] | None:
         )
 
     if method == "tools/list":
-        return jsonrpc.build_response(msg_id, {"tools": [spec for spec, _ in _STATELESS_TOOLS.values()]})
+        return jsonrpc.build_response(message["id"], {"tools": [spec for spec, _ in _STATELESS_TOOLS.values()]})
 
     if method == "tools/call":
         name = params.get("name")
+        if not isinstance(name, str):
+            return jsonrpc.build_error(msg_id, jsonrpc.METHOD_NOT_FOUND, f"unknown tool: {name!r}")
         entry = _STATELESS_TOOLS.get(name)
         if entry is None:
             return jsonrpc.build_error(msg_id, jsonrpc.METHOD_NOT_FOUND, f"unknown tool: {name!r}")
         capabilities = set(meta.get("capabilities", {}) or {})
         content, is_error = entry[1](params.get("arguments", {}), capabilities)
-        return jsonrpc.build_response(msg_id, {"content": content, "isError": is_error})
+        return jsonrpc.build_response(message["id"], {"content": content, "isError": is_error})
 
     if is_notification:
         return None
@@ -253,7 +264,11 @@ def run_stateless_demo() -> dict[str, Any]:
             {"_meta": {"protocolVersion": STATELESS_PROTOCOL_VERSION, "clientInfo": {}, "capabilities": {}}},
         )
     )
-    missing_meta = handle_stateless(jsonrpc.build_request("y", "tools/call", {"name": "add", "arguments": {"a": 1, "b": 1}}))
+    missing_meta = handle_stateless(
+        jsonrpc.build_request("y", "tools/call", {"name": "add", "arguments": {"a": 1, "b": 1}})
+    )
+    assert handshake_gone is not None, "a request (has 'id') always gets a response, never None"
+    assert missing_meta is not None, "a request (has 'id') always gets a response, never None"
 
     return {
         "add_1": add_1,

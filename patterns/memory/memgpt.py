@@ -23,7 +23,6 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 
 from agentic_patterns import Message, Provider, Tool, ToolRegistry, get_provider, scripted_tool_call
-
 from patterns.memory.short_term import count_tokens
 
 # The demo entry the model pages out, then back in, through function calls.

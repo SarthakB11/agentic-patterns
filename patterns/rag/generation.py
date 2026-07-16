@@ -16,7 +16,6 @@ import re
 from dataclasses import dataclass, field
 
 from agentic_patterns import Message, Provider
-
 from patterns.rag.chunking import Chunk
 
 ABSTAIN_ANSWER = "I don't have enough information in the retrieved documents to answer that."
