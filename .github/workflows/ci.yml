@@ -6,6 +6,28 @@ on:
   pull_request:
 
 jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -e ".[dev]"
+      - name: Ruff
+        run: ruff check .
+
+  types:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -e ".[dev]"
+      - name: Pyright
+        run: pyright
+
   tests:
     runs-on: ubuntu-latest
     strategy:
@@ -16,10 +38,11 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
-      - name: Install
-        run: pip install -e ".[dev]"
-      - name: Test
-        run: pytest -q
+      - run: pip install -e ".[dev]"
+      - name: Test with coverage
+        run: |
+          coverage run -m pytest -q
+          coverage report --include="agentic_patterns/*,patterns/*" --fail-under=80
 
   # The offline path is a core promise of this repo: the package and every
   # example must work on a bare interpreter with nothing installed.
@@ -32,3 +55,9 @@ jobs:
           python-version: "3.12"
       - name: Import with no dependencies installed
         run: python -c "import agentic_patterns; print('stdlib-only import OK')"
+      - name: Every demo runs offline with no key
+        run: |
+          for p in react planning reflection tool_use memory rag multi_agent evaluation mcp guardrails human_in_the_loop routing; do
+            python -m patterns.$p.main > /dev/null || exit 1
+          done
+          echo "all 12 demos exited 0 offline"
