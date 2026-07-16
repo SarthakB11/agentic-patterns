@@ -14,14 +14,36 @@ dependencies = []
 
 [project.optional-dependencies]
 providers = ["httpx>=0.27"]
-dev = ["pytest>=8", "httpx>=0.27"]
+dev = ["pytest>=8", "httpx>=0.27", "ruff>=0.6", "pyright>=1.1", "coverage>=7"]
 
 [project.urls]
 Repository = "https://github.com/SarthakB11/agentic-patterns"
+Issues = "https://github.com/SarthakB11/agentic-patterns/issues"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["."]
+
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+
+[tool.ruff.lint]
+# Pyflakes, pycodestyle, isort, pyupgrade, bugbear, comprehensions, simplify, naming.
+select = ["E", "F", "W", "I", "UP", "B", "C4", "SIM", "N"]
+# B905: zip strict= reads as noise in teaching code where lengths match by construction.
+# N818: exception names like MockScriptExhausted and RepairBudgetExceeded are deliberate and clear.
+ignore = ["B905", "N818"]
+
+[tool.ruff.lint.per-file-ignores]
+# Tests deliberately build long scripted strings and mirror protocol method names in function names.
+"tests/**" = ["E501", "N802"]
+
+[tool.pyright]
+include = ["agentic_patterns", "patterns"]
+pythonVersion = "3.11"
+typeCheckingMode = "basic"
+reportMissingImports = false
 
 [build-system]
 requires = ["setuptools>=68"]
