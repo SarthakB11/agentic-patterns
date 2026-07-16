@@ -1,0 +1,109 @@
+{
+  "name": "bench_reflection",
+  "model": "claude-haiku-4-5-20251001",
+  "n": 14,
+  "variants": {
+    "one_shot": 1.0,
+    "reflection": 1.0
+  },
+  "headline": "reflection passed 100% of 14 code tasks vs 100% for one_shot, using a mean of 0.00 refine rounds.",
+  "detail": {
+    "mean_refine_rounds": 0.0,
+    "max_refine_rounds": 2
+  },
+  "tasks": [
+    {
+      "id": "wildcard_match",
+      "one_shot_passed": true,
+      "reflection_passed": true,
+      "refine_rounds": 0
+    },
+    {
+      "id": "edit_distance",
+      "one_shot_passed": true,
+      "reflection_passed": true,
+      "refine_rounds": 0
+    },
+    {
+      "id": "longest_palindromic_substring",
+      "one_shot_passed": true,
+      "reflection_passed": true,
+      "refine_rounds": 0
+    },
+    {
+      "id": "is_valid_number",
+      "one_shot_passed": true,
+      "reflection_passed": true,
+      "refine_rounds": 0
+    },
+    {
+      "id": "basic_calculator",
+      "one_shot_passed": true,
+      "reflection_passed": true,
+      "refine_rounds": 0
+    },
+    {
+      "id": "decode_ways",
+      "one_shot_passed": true,
+      "reflection_passed": true,
+      "refine_rounds": 0
+    },
+    {
+      "id": "spiral_order",
+      "one_shot_passed": true,
+      "reflection_passed": true,
+      "refine_rounds": 0
+    },
+    {
+      "id": "integer_to_words",
+      "one_shot_passed": true,
+      "reflection_passed": true,
+      "refine_rounds": 0
+    },
+    {
+      "id": "next_permutation",
+      "one_shot_passed": true,
+      "reflection_passed": true,
+      "refine_rounds": 0
+    },
+    {
+      "id": "rle_compress",
+      "one_shot_passed": true,
+      "reflection_passed": true,
+      "refine_rounds": 0
+    },
+    {
+      "id": "word_break",
+      "one_shot_passed": true,
+      "reflection_passed": true,
+      "refine_rounds": 0
+    },
+    {
+      "id": "simplify_unix_path",
+      "one_shot_passed": true,
+      "reflection_passed": true,
+      "refine_rounds": 0
+    },
+    {
+      "id": "atoi",
+      "one_shot_passed": true,
+      "reflection_passed": true,
+      "refine_rounds": 0
+    },
+    {
+      "id": "fraction_to_decimal",
+      "one_shot_passed": true,
+      "reflection_passed": true,
+      "refine_rounds": 0
+    }
+  ],
+  "usage": {
+    "model": "claude-haiku-4-5-20251001",
+    "input_tokens": 3842,
+    "output_tokens": 8090,
+    "api_calls": 28,
+    "cache_hits": 0,
+    "cost_usd": 0.0443,
+    "stamped_at": "2026-07-16"
+  }
+}

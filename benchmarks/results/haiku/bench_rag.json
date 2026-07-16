@@ -1,0 +1,492 @@
+{
+  "name": "bench_rag",
+  "model": "claude-haiku-4-5-20251001",
+  "n": 30,
+  "variants": {
+    "dense": 0.9333,
+    "hybrid": 0.9,
+    "hybrid_rerank": 1.0
+  },
+  "headline": "On 30 questions over a 28-passage corpus (with keyword-collision distractors and paraphrased questions), hit@1 was dense=0.93, hybrid=0.90, hybrid_rerank=1.00 (best: hybrid_rerank).",
+  "detail": {
+    "hit@1": {
+      "dense": 0.9333,
+      "hybrid": 0.9,
+      "hybrid_rerank": 1.0
+    },
+    "hit@3": {
+      "dense": 1.0,
+      "hybrid": 0.9667,
+      "hybrid_rerank": 1.0
+    },
+    "mrr": {
+      "dense": 0.9667,
+      "hybrid": 0.9333,
+      "hybrid_rerank": 1.0
+    },
+    "top_k": 3,
+    "fetch_k": 8,
+    "embed_calls": 0
+  },
+  "tasks": [
+    {
+      "id": "q00",
+      "question": "How often does Meridian check a storage bucket for new files?",
+      "gold_id": "triggers#2",
+      "outcomes": {
+        "dense": ["triggers#2", "webhooks#5", "billing#0"],
+        "hybrid": ["triggers#2", "triggers#3", "triggers#1"],
+        "hybrid_rerank": ["triggers#2", "triggers#3", "webhooks#5"]
+      },
+      "correct": {
+        "dense": true,
+        "hybrid": true,
+        "hybrid_rerank": true
+      }
+    },
+    {
+      "id": "q01",
+      "question": "What HTTP method does a webhook trigger's inbound URL expect?",
+      "gold_id": "triggers#0",
+      "outcomes": {
+        "dense": ["triggers#0", "webhooks#5", "webhooks#3"],
+        "hybrid": ["triggers#0", "webhooks#5", "webhooks#3"],
+        "hybrid_rerank": ["triggers#0", "webhooks#5", "webhooks#0"]
+      },
+      "correct": {
+        "dense": true,
+        "hybrid": true,
+        "hybrid_rerank": true
+      }
+    },
+    {
+      "id": "q03",
+      "question": "How many times does a failed step retry automatically, and with what delays?",
+      "gold_id": "retries#0",
+      "outcomes": {
+        "dense": ["retries#0", "retries#1", "webhooks#1"],
+        "hybrid": ["retries#0", "webhooks#1", "retries#1"],
+        "hybrid_rerank": ["retries#0", "retries#1", "webhooks#1"]
+      },
+      "correct": {
+        "dense": true,
+        "hybrid": true,
+        "hybrid_rerank": true
+      }
+    },
+    {
+      "id": "q06",
+      "question": "Which role is required to move billing to a different account?",
+      "gold_id": "permissions#0",
+      "outcomes": {
+        "dense": ["permissions#0", "permissions#1", "triggers#4"],
+        "hybrid": ["permissions#0", "permissions#1", "triggers#4"],
+        "hybrid_rerank": ["permissions#0", "permissions#1", "permissions#2"]
+      },
+      "correct": {
+        "dense": true,
+        "hybrid": true,
+        "hybrid_rerank": true
+      }
+    },
+    {
+      "id": "q09",
+      "question": "What header carries the signature on an inbound webhook request?",
+      "gold_id": "webhooks#0",
+      "outcomes": {
+        "dense": ["webhooks#0", "webhooks#3", "webhooks#5"],
+        "hybrid": ["webhooks#0", "webhooks#3", "webhooks#5"],
+        "hybrid_rerank": ["webhooks#0", "webhooks#3", "webhooks#2"]
+      },
+      "correct": {
+        "dense": true,
+        "hybrid": true,
+        "hybrid_rerank": true
+      }
+    },
+    {
+      "id": "q11",
+      "question": "What happens if a webhook payload is larger than 5 MB?",
+      "gold_id": "webhooks#2",
+      "outcomes": {
+        "dense": ["webhooks#2", "webhooks#1", "webhooks#5"],
+        "hybrid": ["webhooks#2", "webhooks#5", "billing#2"],
+        "hybrid_rerank": ["webhooks#2", "webhooks#5", "webhooks#0"]
+      },
+      "correct": {
+        "dense": true,
+        "hybrid": true,
+        "hybrid_rerank": true
+      }
+    },
+    {
+      "id": "q12",
+      "question": "If a workflow fails on its very first step, does that still count as a billed run?",
+      "gold_id": "billing#0",
+      "outcomes": {
+        "dense": ["billing#0", "retries#3", "billing#2"],
+        "hybrid": ["billing#0", "retries#3", "retries#2"],
+        "hybrid_rerank": ["billing#0", "billing#2", "retries#0"]
+      },
+      "correct": {
+        "dense": true,
+        "hybrid": true,
+        "hybrid_rerank": true
+      }
+    },
+    {
+      "id": "q14",
+      "question": "What happens to runs beyond the 1,000-run Starter cap?",
+      "gold_id": "billing#2",
+      "outcomes": {
+        "dense": ["billing#2", "billing#1", "webhooks#2"],
+        "hybrid": ["billing#2", "billing#1", "webhooks#4"],
+        "hybrid_rerank": ["billing#2", "billing#1", "billing#0"]
+      },
+      "correct": {
+        "dense": true,
+        "hybrid": true,
+        "hybrid_rerank": true
+      }
+    },
+    {
+      "id": "q15",
+      "question": "How long do I have to file an invoice dispute?",
+      "gold_id": "billing#3",
+      "outcomes": {
+        "dense": ["billing#3", "billing#4", "billing#1"],
+        "hybrid": ["billing#3", "billing#1", "permissions#3"],
+        "hybrid_rerank": ["billing#3", "billing#4", "billing#1"]
+      },
+      "correct": {
+        "dense": true,
+        "hybrid": true,
+        "hybrid_rerank": true
+      }
+    },
+    {
+      "id": "q18",
+      "question": "What cron timezone does Meridian's schedule trigger use?",
+      "gold_id": "triggers#0",
+      "outcomes": {
+        "dense": ["triggers#3", "triggers#0", "webhooks#5"],
+        "hybrid": ["triggers#3", "triggers#0", "webhooks#5"],
+        "hybrid_rerank": ["triggers#0", "triggers#3", "triggers#1"]
+      },
+      "correct": {
+        "dense": true,
+        "hybrid": true,
+        "hybrid_rerank": true
+      }
+    },
+    {
+      "id": "q02",
+      "question": "If a workflow hasn't been published yet, what kind of trigger kicks it off unless someone changes it?",
+      "gold_id": "triggers#1",
+      "outcomes": {
+        "dense": ["triggers#1", "webhooks#4", "triggers#0"],
+        "hybrid": ["retries#3", "webhooks#2", "triggers#0"],
+        "hybrid_rerank": ["triggers#1", "triggers#0", "webhooks#4"]
+      },
+      "correct": {
+        "dense": true,
+        "hybrid": false,
+        "hybrid_rerank": true
+      }
+    },
+    {
+      "id": "q04",
+      "question": "How do I turn off automatic retries for a single step?",
+      "gold_id": "retries#1",
+      "outcomes": {
+        "dense": ["retries#1", "retries#0", "retries#2"],
+        "hybrid": ["retries#1", "retries#0", "retries#3"],
+        "hybrid_rerank": ["retries#1", "retries#0", "webhooks#1"]
+      },
+      "correct": {
+        "dense": true,
+        "hybrid": true,
+        "hybrid_rerank": true
+      }
+    },
+    {
+      "id": "q05",
+      "question": "Can I get more than half a minute before a slow step counts as unsuccessful, even on a premium tier?",
+      "gold_id": "retries#2",
+      "outcomes": {
+        "dense": ["retries#2", "retries#0", "retries#1"],
+        "hybrid": ["retries#2", "billing#0", "retries#1"],
+        "hybrid_rerank": ["retries#2", "retries#0", "retries#1"]
+      },
+      "correct": {
+        "dense": true,
+        "hybrid": true,
+        "hybrid_rerank": true
+      }
+    },
+    {
+      "id": "q07",
+      "question": "Is a workspace collaborator with edit rights allowed to bring on a new teammate?",
+      "gold_id": "permissions#1",
+      "outcomes": {
+        "dense": ["permissions#1", "permissions#0", "triggers#4"],
+        "hybrid": ["permissions#1", "triggers#4", "permissions#2"],
+        "hybrid_rerank": ["permissions#1", "permissions#3", "permissions#0"]
+      },
+      "correct": {
+        "dense": true,
+        "hybrid": true,
+        "hybrid_rerank": true
+      }
+    },
+    {
+      "id": "q08",
+      "question": "What can a Viewer do in a Meridian workspace?",
+      "gold_id": "permissions#2",
+      "outcomes": {
+        "dense": ["permissions#0", "permissions#2", "billing#0"],
+        "hybrid": ["permissions#0", "permissions#2", "triggers#3"],
+        "hybrid_rerank": ["permissions#2", "permissions#0", "triggers#0"]
+      },
+      "correct": {
+        "dense": true,
+        "hybrid": true,
+        "hybrid_rerank": true
+      }
+    },
+    {
+      "id": "q10",
+      "question": "How many times does Meridian retry an outbound webhook delivery, and over what window?",
+      "gold_id": "webhooks#1",
+      "outcomes": {
+        "dense": ["webhooks#1", "webhooks#5", "retries#5"],
+        "hybrid": ["webhooks#1", "retries#5", "triggers#2"],
+        "hybrid_rerank": ["webhooks#1", "retries#5", "retries#2"]
+      },
+      "correct": {
+        "dense": true,
+        "hybrid": true,
+        "hybrid_rerank": true
+      }
+    },
+    {
+      "id": "q13",
+      "question": "What happens to the price when a workspace upgrades from Starter to Team mid cycle?",
+      "gold_id": "billing#1",
+      "outcomes": {
+        "dense": ["billing#1", "triggers#4", "billing#2"],
+        "hybrid": ["billing#1", "triggers#4", "billing#2"],
+        "hybrid_rerank": ["billing#1", "billing#2", "billing#4"]
+      },
+      "correct": {
+        "dense": true,
+        "hybrid": true,
+        "hybrid_rerank": true
+      }
+    },
+    {
+      "id": "q16",
+      "question": "Where is the HMAC signing secret used, and what algorithm signs the request?",
+      "gold_id": "webhooks#0",
+      "outcomes": {
+        "dense": ["webhooks#0", "webhooks#3", "triggers#5"],
+        "hybrid": ["webhooks#0", "webhooks#3", "triggers#5"],
+        "hybrid_rerank": ["webhooks#0", "webhooks#3", "triggers#0"]
+      },
+      "correct": {
+        "dense": true,
+        "hybrid": true,
+        "hybrid_rerank": true
+      }
+    },
+    {
+      "id": "q17",
+      "question": "Who can see a workflow's run history without being able to trigger a run?",
+      "gold_id": "permissions#2",
+      "outcomes": {
+        "dense": ["permissions#2", "webhooks#4", "permissions#1"],
+        "hybrid": ["permissions#2", "webhooks#4", "permissions#4"],
+        "hybrid_rerank": ["permissions#2", "webhooks#4", "permissions#1"]
+      },
+      "correct": {
+        "dense": true,
+        "hybrid": true,
+        "hybrid_rerank": true
+      }
+    },
+    {
+      "id": "q19",
+      "question": "Does exceeding the outbound webhook retry window mark the step Failed?",
+      "gold_id": "webhooks#1",
+      "outcomes": {
+        "dense": ["webhooks#1", "retries#0", "retries#1"],
+        "hybrid": ["webhooks#1", "retries#1", "retries#0"],
+        "hybrid_rerank": ["webhooks#1", "retries#1", "retries#0"]
+      },
+      "correct": {
+        "dense": true,
+        "hybrid": true,
+        "hybrid_rerank": true
+      }
+    },
+    {
+      "id": "q20",
+      "question": "When does moving a workspace to a cheaper tier actually kick in?",
+      "gold_id": "triggers#4",
+      "outcomes": {
+        "dense": ["triggers#4", "billing#1", "billing#2"],
+        "hybrid": ["triggers#4", "permissions#0", "billing#1"],
+        "hybrid_rerank": ["triggers#4", "billing#1", "billing#2"]
+      },
+      "correct": {
+        "dense": true,
+        "hybrid": true,
+        "hybrid_rerank": true
+      }
+    },
+    {
+      "id": "q21",
+      "question": "How does a team get pinged automatically after a workflow keeps failing?",
+      "gold_id": "retries#4",
+      "outcomes": {
+        "dense": ["retries#4", "retries#0", "retries#3"],
+        "hybrid": ["retries#4", "retries#0", "billing#4"],
+        "hybrid_rerank": ["retries#4", "retries#0", "retries#3"]
+      },
+      "correct": {
+        "dense": true,
+        "hybrid": true,
+        "hybrid_rerank": true
+      }
+    },
+    {
+      "id": "q22",
+      "question": "After an Owner removes a workspace entirely, is there any window to change their mind?",
+      "gold_id": "permissions#4",
+      "outcomes": {
+        "dense": ["permissions#4", "triggers#4", "permissions#0"],
+        "hybrid": ["permissions#4", "permissions#0", "permissions#1"],
+        "hybrid_rerank": ["permissions#4", "permissions#0", "triggers#4"]
+      },
+      "correct": {
+        "dense": true,
+        "hybrid": true,
+        "hybrid_rerank": true
+      }
+    },
+    {
+      "id": "q23",
+      "question": "Where can a member check who kicked off a run and when?",
+      "gold_id": "webhooks#4",
+      "outcomes": {
+        "dense": ["webhooks#4", "billing#4", "billing#2"],
+        "hybrid": ["webhooks#4", "permissions#2", "permissions#1"],
+        "hybrid_rerank": ["webhooks#4", "permissions#2", "triggers#1"]
+      },
+      "correct": {
+        "dense": true,
+        "hybrid": true,
+        "hybrid_rerank": true
+      }
+    },
+    {
+      "id": "q25",
+      "question": "What keeps a flaky network retry from launching the same run a second time?",
+      "gold_id": "triggers#5",
+      "outcomes": {
+        "dense": ["triggers#5", "retries#0", "retries#3"],
+        "hybrid": ["triggers#5", "retries#3", "retries#0"],
+        "hybrid_rerank": ["triggers#5", "retries#3", "retries#1"]
+      },
+      "correct": {
+        "dense": true,
+        "hybrid": true,
+        "hybrid_rerank": true
+      }
+    },
+    {
+      "id": "q26",
+      "question": "Where would I find the response code Meridian got back for each outbound delivery attempt?",
+      "gold_id": "retries#5",
+      "outcomes": {
+        "dense": ["retries#5", "webhooks#5", "billing#3"],
+        "hybrid": ["retries#5", "webhooks#5", "webhooks#1"],
+        "hybrid_rerank": ["retries#5", "webhooks#1", "webhooks#4"]
+      },
+      "correct": {
+        "dense": true,
+        "hybrid": true,
+        "hybrid_rerank": true
+      }
+    },
+    {
+      "id": "q27",
+      "question": "Does the sender of an inbound webhook wait for the whole workflow to finish before getting a response back?",
+      "gold_id": "webhooks#5",
+      "outcomes": {
+        "dense": ["webhooks#5", "webhooks#1", "webhooks#2"],
+        "hybrid": ["webhooks#5", "webhooks#2", "webhooks#3"],
+        "hybrid_rerank": ["webhooks#5", "webhooks#2", "triggers#0"]
+      },
+      "correct": {
+        "dense": true,
+        "hybrid": true,
+        "hybrid_rerank": true
+      }
+    },
+    {
+      "id": "q28",
+      "question": "How long is a new member's invitation link good for before it expires?",
+      "gold_id": "permissions#3",
+      "outcomes": {
+        "dense": ["permissions#3", "permissions#1", "webhooks#3"],
+        "hybrid": ["permissions#3", "permissions#1", "webhooks#3"],
+        "hybrid_rerank": ["permissions#3", "permissions#1", "webhooks#3"]
+      },
+      "correct": {
+        "dense": true,
+        "hybrid": true,
+        "hybrid_rerank": true
+      }
+    },
+    {
+      "id": "q29",
+      "question": "Can Meridian's cron trigger fire more often than once a minute?",
+      "gold_id": "triggers#3",
+      "outcomes": {
+        "dense": ["triggers#3", "triggers#2", "triggers#0"],
+        "hybrid": ["triggers#3", "triggers#0", "webhooks#5"],
+        "hybrid_rerank": ["triggers#3", "triggers#0", "triggers#2"]
+      },
+      "correct": {
+        "dense": true,
+        "hybrid": true,
+        "hybrid_rerank": true
+      }
+    },
+    {
+      "id": "q30",
+      "question": "Is there a way to invalidate an inbound webhook's secret without disabling the trigger?",
+      "gold_id": "webhooks#3",
+      "outcomes": {
+        "dense": ["webhooks#3", "webhooks#0", "webhooks#2"],
+        "hybrid": ["webhooks#3", "webhooks#0", "triggers#0"],
+        "hybrid_rerank": ["webhooks#3", "webhooks#0", "triggers#0"]
+      },
+      "correct": {
+        "dense": true,
+        "hybrid": true,
+        "hybrid_rerank": true
+      }
+    }
+  ],
+  "usage": {
+    "model": "claude-haiku-4-5-20251001",
+    "input_tokens": 13175,
+    "output_tokens": 1272,
+    "api_calls": 30,
+    "cache_hits": 0,
+    "cost_usd": 0.0195,
+    "stamped_at": "2026-07-16"
+  }
+}

@@ -25,7 +25,7 @@ from typing import Any
 
 from agentic_patterns import Completion, Message, MockProvider, Provider, ToolCall
 from agentic_patterns.core.embeddings import Embedder, HashEmbedder, OpenAIEmbedder
-from agentic_patterns.core.providers import OpenAICompatibleProvider
+from agentic_patterns.core.providers import AnthropicProvider, OpenAICompatibleProvider
 
 GEMINI_EMBED_MODEL = "gemini-embedding-001"
 
@@ -40,9 +40,11 @@ PRICING: dict[str, tuple[float, float]] = {
     "gemini-3.1-flash-lite": (0.25, 1.50),
     "gemini-3-flash-preview": (0.50, 3.00),
     "gemini-3.5-flash": (1.50, 9.00),
+    "claude-haiku-4-5-20251001": (1.00, 5.00),
 }
 
 DEFAULT_MODEL = "gemini-3.1-flash-lite"
+DEFAULT_ANTHROPIC_MODEL = "claude-haiku-4-5-20251001"
 GEMINI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/openai"
 
 
@@ -50,21 +52,32 @@ class BudgetExceeded(RuntimeError):
     """Raised when a call would push a run past its USD ceiling."""
 
 
-def load_key(env_path: pathlib.Path | None = None) -> str:
-    """Read GEMINI_KEY from the environment or the gitignored .env file.
+def _read_key(names: tuple[str, ...], env_path: pathlib.Path | None = None) -> str:
+    """Read the first of `names` found in the environment or the gitignored .env.
 
-    The key is never written to a tracked file. It is read at call time and
+    Keys are never written to a tracked file. They are read at call time and
     passed straight to the provider.
     """
-    key = os.environ.get("GEMINI_KEY") or os.environ.get("GEMINI_API_KEY")
-    if key:
-        return key
+    for name in names:
+        if os.environ.get(name):
+            return os.environ[name]
     path = env_path or (BENCH_DIR.parent / ".env")
     if path.exists():
         for line in path.read_text().splitlines():
-            if line.startswith("GEMINI_KEY="):
-                return line.split("=", 1)[1].strip()
-    raise RuntimeError("No GEMINI_KEY found in environment or .env. Benchmarks need a key to run live.")
+            for name in names:
+                if line.startswith(f"{name}="):
+                    return line.split("=", 1)[1].strip()
+    raise RuntimeError(f"None of {names} found in environment or .env. Benchmarks need a key to run live.")
+
+
+def load_key(env_path: pathlib.Path | None = None) -> str:
+    """Read the Gemini key from the environment or .env."""
+    return _read_key(("GEMINI_KEY", "GEMINI_API_KEY"), env_path)
+
+
+def load_anthropic_key(env_path: pathlib.Path | None = None) -> str:
+    """Read the Anthropic key from the environment or .env."""
+    return _read_key(("ANTHROPIC_KEY", "ANTHROPIC_API_KEY"), env_path)
 
 
 @dataclass
@@ -177,8 +190,10 @@ class BenchProvider(Provider):
             messages, tools=tools, system=system, temperature=temperature, max_tokens=max_tokens
         )
         usage = (completion.raw or {}).get("usage", {}) if isinstance(completion.raw, dict) else {}
-        self.usage.input_tokens += int(usage.get("prompt_tokens", 0))
-        self.usage.output_tokens += int(usage.get("completion_tokens", 0))
+        # OpenAI-compatible endpoints report prompt_tokens/completion_tokens;
+        # the Anthropic Messages API reports input_tokens/output_tokens.
+        self.usage.input_tokens += int(usage.get("prompt_tokens") or usage.get("input_tokens") or 0)
+        self.usage.output_tokens += int(usage.get("completion_tokens") or usage.get("output_tokens") or 0)
         self.usage.api_calls += 1
         if cache_file is not None:
             cache_file.write_text(json.dumps(_completion_to_dict(completion, usage)))
@@ -186,7 +201,19 @@ class BenchProvider(Provider):
 
 
 def live_provider(model: str = DEFAULT_MODEL, budget_usd: float = 2.0) -> BenchProvider:
-    """A budgeted, cached provider backed by Gemini's OpenAI-compatible endpoint."""
+    """A budgeted, cached provider for a benchmark's live run.
+
+    Defaults to Gemini through its OpenAI-compatible endpoint. Set the env var
+    BENCH_BACKEND=anthropic to run the same benchmark against Anthropic instead
+    (model from BENCH_MODEL, defaulting to Claude Haiku 4.5), so a second model
+    can be measured with no change to any benchmark module. The cache key
+    includes the model, so different models never share a cached response.
+    """
+    backend = os.environ.get("BENCH_BACKEND", "gemini")
+    if backend == "anthropic":
+        anthropic_model = os.environ.get("BENCH_MODEL", DEFAULT_ANTHROPIC_MODEL)
+        inner: Provider = AnthropicProvider(model=anthropic_model, api_key=load_anthropic_key())
+        return BenchProvider(inner, model=anthropic_model, budget_usd=budget_usd)
     inner = OpenAICompatibleProvider(model=model, api_key=load_key(), base_url=GEMINI_BASE_URL)
     return BenchProvider(inner, model=model, budget_usd=budget_usd)
 
@@ -272,16 +299,28 @@ class BenchResult:
     tasks: list[dict[str, Any]] = field(default_factory=list)
     usage: dict[str, Any] = field(default_factory=dict)
 
-    def save(self) -> pathlib.Path:
-        """Write the result to results/<name>.json and return the path."""
-        RESULTS_DIR.mkdir(exist_ok=True)
-        path = RESULTS_DIR / f"{self.name}.json"
+    def save(self, subdir: str = "") -> pathlib.Path:
+        """Write the result to results/[<subdir>/]<name>.json and return the path.
+
+        A live second-model run passes a subdir (for example "haiku") so its
+        results land in their own folder instead of overwriting the first
+        model's. A mock dry run passes "mock" so it never overwrites live
+        results at all.
+        """
+        out_dir = RESULTS_DIR / subdir if subdir else RESULTS_DIR
+        out_dir.mkdir(parents=True, exist_ok=True)
+        path = out_dir / f"{self.name}.json"
         path.write_text(json.dumps(asdict(self), indent=2))
         return path
 
 
 def finalize(result: BenchResult, provider: BenchProvider) -> BenchResult:
-    """Attach the provider's usage tally to a result and save it."""
+    """Attach the provider's usage tally to a result and save it.
+
+    A mock dry run (a provider with caching off) saves to results/mock/ so a
+    free plumbing check can never overwrite a committed live result. A live
+    run saves to results/ or, for a second model, results/<BENCH_RESULTS_SUBDIR>/.
+    """
     result.usage = {
         "model": provider.model,
         "input_tokens": provider.usage.input_tokens,
@@ -291,5 +330,6 @@ def finalize(result: BenchResult, provider: BenchProvider) -> BenchResult:
         "cost_usd": round(provider.usage.cost_usd(provider.model), 4),
         "stamped_at": time.strftime("%Y-%m-%d", time.gmtime()) if not os.environ.get("BENCH_NO_DATE") else "",
     }
-    result.save()
+    subdir = "mock" if not provider.use_cache else os.environ.get("BENCH_RESULTS_SUBDIR", "")
+    result.save(subdir)
     return result

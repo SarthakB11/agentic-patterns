@@ -1,0 +1,344 @@
+{
+  "name": "bench_react",
+  "model": "claude-haiku-4-5-20251001",
+  "n": 15,
+  "variants": {
+    "direct": 0.06666666666666667,
+    "react": 0.3333333333333333,
+    "react_verify": 0.06666666666666667
+  },
+  "headline": "On 15 invented two-hop questions, direct answering succeeded on 7% of tasks versus react 33% and react_verify 7%, with react best; mean model calls per task were direct 1.0, react 3.7, react_verify 6.2.",
+  "detail": {
+    "mean_model_calls": {
+      "direct": 1,
+      "react": 3.6666666666666665,
+      "react_verify": 6.2
+    }
+  },
+  "tasks": [
+    {
+      "id": "t01",
+      "variant": "direct",
+      "answer": "I don't have reliable information about a \"Kelvorin River\" in my knowledge base. Could you provide more context about which country or region this river is located in? That would help me give you an accurate answer about the capital.",
+      "correct": false,
+      "model_calls": 1
+    },
+    {
+      "id": "t02",
+      "variant": "direct",
+      "answer": "I don't have reliable information about the Duskfall Mountains or which country they are located in. Could you provide more context about where these mountains are, or clarify if this is a fictional location?",
+      "correct": false,
+      "model_calls": 1
+    },
+    {
+      "id": "t03",
+      "variant": "direct",
+      "answer": "I don't have any information about a lake called \"Lake Azurine.\" Could you provide more details or check the spelling? This would help me identify the correct lake and country.",
+      "correct": false,
+      "model_calls": 1
+    },
+    {
+      "id": "t04",
+      "variant": "direct",
+      "answer": "I don't have any information about a country called \"Cindrapass.\" This doesn't appear to be a real country. Could you provide more context or clarify what you're asking about?",
+      "correct": false,
+      "model_calls": 1
+    },
+    {
+      "id": "t05",
+      "variant": "direct",
+      "answer": "I don't have reliable information about the Orven Delta or which country it empties into. Could you provide more context or clarify the location?",
+      "correct": false,
+      "model_calls": 1
+    },
+    {
+      "id": "t06",
+      "variant": "direct",
+      "answer": "I don't have any information about a country called \"Sablewood Forest.\" This appears to be a fictional or non-existent location. Could you provide more context or clarify what you're asking about?",
+      "correct": false,
+      "model_calls": 1
+    },
+    {
+      "id": "t07",
+      "variant": "direct",
+      "answer": "I don't have any information about a country called \"Thornvale Pass\" or what country it crosses into. This appears to be a fictional location or a place I'm not familiar with. Could you provide more context or clarify what you're asking about?",
+      "correct": false,
+      "model_calls": 1
+    },
+    {
+      "id": "t08",
+      "variant": "direct",
+      "answer": "I don't have reliable information about a \"Glasmere Strait\" in my knowledge base. Could you please verify the spelling or provide additional context about its location? This would help me give you an accurate answer about the capital of the country it borders.",
+      "correct": false,
+      "model_calls": 1
+    },
+    {
+      "id": "t09",
+      "variant": "direct",
+      "answer": "I don't have any information about a place called \"Ironreach Canyon\" or which country it's in. Could you provide more context or clarify the location?",
+      "correct": false,
+      "model_calls": 1
+    },
+    {
+      "id": "t10",
+      "variant": "direct",
+      "answer": "I don't have reliable information about the location of the Windmere Plateau. Could you provide more context about which country or region it's in?",
+      "correct": false,
+      "model_calls": 1
+    },
+    {
+      "id": "t11",
+      "variant": "direct",
+      "answer": "I don't have reliable information about a \"Kelvorin River\" in my knowledge base. Could you provide additional context, such as which country or region it's located in, or verify the spelling? This would help me give you an accurate answer about the capital.",
+      "correct": false,
+      "model_calls": 1
+    },
+    {
+      "id": "t12",
+      "variant": "direct",
+      "answer": "I don't have any information about a country with a capital called \"Northarrow\" or a place called \"Cindrapass.\" These don't appear to be real geographical locations. Could you provide more context or clarify if these are fictional places?",
+      "correct": true,
+      "model_calls": 1
+    },
+    {
+      "id": "t13",
+      "variant": "direct",
+      "answer": "I don't have enough information to answer this question. The Duskfall Mountains don't appear to be a real geographical location, and I'm not aware of them from any widely known fictional works. Could you provide more context about where these mountains are from?",
+      "correct": false,
+      "model_calls": 1
+    },
+    {
+      "id": "t14",
+      "variant": "direct",
+      "answer": "I don't have any information about a place called \"Lake Azurine\" or its country. Could you provide more context or clarify the location you're asking about?",
+      "correct": false,
+      "model_calls": 1
+    },
+    {
+      "id": "t15",
+      "variant": "direct",
+      "answer": "I don't have any information about a nation called \"Sablewood Forest\" or which nation holds it. This appears to be a fictional location that I'm not familiar with. Could you provide more context or clarify which country or fictional universe you're referring to?",
+      "correct": false,
+      "model_calls": 1
+    },
+    {
+      "id": "t01",
+      "variant": "react",
+      "answer": "Ostrengrad",
+      "correct": false,
+      "model_calls": 4
+    },
+    {
+      "id": "t02",
+      "variant": "react",
+      "answer": "The currency of the country where the Duskfall Mountains are located is the drenn. The Duskfall Mountains are in Palvaria, which uses the drenn as its currency.",
+      "correct": true,
+      "model_calls": 3
+    },
+    {
+      "id": "t03",
+      "variant": "react",
+      "answer": "Vessic",
+      "correct": true,
+      "model_calls": 3
+    },
+    {
+      "id": "t04",
+      "variant": "react",
+      "answer": "Silvercrest",
+      "correct": false,
+      "model_calls": 3
+    },
+    {
+      "id": "t05",
+      "variant": "react",
+      "answer": "Adair Voss",
+      "correct": true,
+      "model_calls": 3
+    },
+    {
+      "id": "t06",
+      "variant": "react",
+      "answer": "Stopped: could not reach an answer within the iteration budget.",
+      "correct": false,
+      "model_calls": 6
+    },
+    {
+      "id": "t07",
+      "variant": "react",
+      "answer": "I cannot find information about Thornvale Pass or the country it crosses into in the available knowledge base. Without being able to identify the destination country, I cannot determine its national anthem. If you could provide additional context or clarify whether these are real geographical locations, I would be happy to help further.",
+      "correct": false,
+      "model_calls": 3
+    },
+    {
+      "id": "t08",
+      "variant": "react",
+      "answer": "Voskgrad",
+      "correct": false,
+      "model_calls": 3
+    },
+    {
+      "id": "t09",
+      "variant": "react",
+      "answer": "Silverglass",
+      "correct": true,
+      "model_calls": 4
+    },
+    {
+      "id": "t10",
+      "variant": "react",
+      "answer": "Meridian",
+      "correct": false,
+      "model_calls": 4
+    },
+    {
+      "id": "t11",
+      "variant": "react",
+      "answer": "I cannot find verified information about Ostrenia or its capital in standard geographical sources. The Kelvorin River and Ostrenia do not appear in reliable geographical references available to me, which suggests they may be fictional. Without access to authoritative sources about these locations, I cannot accurately answer what Ostrenia's capital is.",
+      "correct": false,
+      "model_calls": 3
+    },
+    {
+      "id": "t12",
+      "variant": "react",
+      "answer": "Grendale",
+      "correct": false,
+      "model_calls": 3
+    },
+    {
+      "id": "t13",
+      "variant": "react",
+      "answer": "drenn",
+      "correct": true,
+      "model_calls": 5
+    },
+    {
+      "id": "t14",
+      "variant": "react",
+      "answer": "Unable to answer - Lake Azurine is not found in the knowledge base and appears to be either fictional or undocumented.",
+      "correct": false,
+      "model_calls": 2
+    },
+    {
+      "id": "t15",
+      "variant": "react",
+      "answer": "Stopped: could not reach an answer within the iteration budget.",
+      "correct": false,
+      "model_calls": 6
+    },
+    {
+      "id": "t01",
+      "variant": "react_verify",
+      "answer": "Stopped: could not reach an answer within the iteration budget.",
+      "correct": false,
+      "model_calls": 7
+    },
+    {
+      "id": "t02",
+      "variant": "react_verify",
+      "answer": null,
+      "correct": false,
+      "model_calls": 8
+    },
+    {
+      "id": "t03",
+      "variant": "react_verify",
+      "answer": null,
+      "correct": false,
+      "model_calls": 8
+    },
+    {
+      "id": "t04",
+      "variant": "react_verify",
+      "answer": "Silvercrest",
+      "correct": false,
+      "model_calls": 4
+    },
+    {
+      "id": "t05",
+      "variant": "react_verify",
+      "answer": "I cannot answer this question because neither the Orven Delta nor Kestrilan appear in my knowledge base. To help you, I would need either: (1) confirmation that these are real geographical locations with alternative spellings, or (2) context about what source material these locations come from.",
+      "correct": false,
+      "model_calls": 4
+    },
+    {
+      "id": "t06",
+      "variant": "react_verify",
+      "answer": null,
+      "correct": false,
+      "model_calls": 6
+    },
+    {
+      "id": "t07",
+      "variant": "react_verify",
+      "answer": "Stopped: could not reach an answer within the iteration budget.",
+      "correct": false,
+      "model_calls": 6
+    },
+    {
+      "id": "t08",
+      "variant": "react_verify",
+      "answer": "Stopped: could not reach an answer within the iteration budget.",
+      "correct": false,
+      "model_calls": 7
+    },
+    {
+      "id": "t09",
+      "variant": "react_verify",
+      "answer": "Stopped: could not reach an answer within the iteration budget.",
+      "correct": false,
+      "model_calls": 6
+    },
+    {
+      "id": "t10",
+      "variant": "react_verify",
+      "answer": "Stopped: could not reach an answer within the iteration budget.",
+      "correct": false,
+      "model_calls": 7
+    },
+    {
+      "id": "t11",
+      "variant": "react_verify",
+      "answer": "Stopped: could not reach an answer within the iteration budget.",
+      "correct": false,
+      "model_calls": 7
+    },
+    {
+      "id": "t12",
+      "variant": "react_verify",
+      "answer": "Grendale",
+      "correct": false,
+      "model_calls": 4
+    },
+    {
+      "id": "t13",
+      "variant": "react_verify",
+      "answer": "Stopped: could not reach an answer within the iteration budget.",
+      "correct": false,
+      "model_calls": 6
+    },
+    {
+      "id": "t14",
+      "variant": "react_verify",
+      "answer": "Vessic",
+      "correct": true,
+      "model_calls": 7
+    },
+    {
+      "id": "t15",
+      "variant": "react_verify",
+      "answer": "Stopped: could not reach an answer within the iteration budget.",
+      "correct": false,
+      "model_calls": 6
+    }
+  ],
+  "usage": {
+    "model": "claude-haiku-4-5-20251001",
+    "input_tokens": 110671,
+    "output_tokens": 29395,
+    "api_calls": 163,
+    "cache_hits": 0,
+    "cost_usd": 0.2576,
+    "stamped_at": "2026-07-16"
+  }
+}

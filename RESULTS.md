@@ -6,6 +6,10 @@ endpoint with no change to `agentic_patterns` (the same `Provider` seam that
 drives the offline mock). Each benchmark asks one question: does the technique
 this repo implements change the outcome on a task with real ground truth.
 
+The same suite also ran against a second model from a different family, Claude
+Haiku 4.5, with no code change. That two-model comparison is the section right
+after the summary, and it is the honest answer to "did you just pick one model."
+
 What this is: a check that the implementations work against a live model and
 that the upgrades have the effect the research predicts, on small purpose-built
 task sets (N is stated per benchmark). What this is not: a leaderboard result
@@ -28,6 +32,53 @@ temperature 0, re-calls a few times).
 | [RAG](patterns/rag/)               | 30  | dense 0.93, hybrid 0.90, +rerank **1.00** (hit@1)        | reranking recovers every miss; naive fusion can hurt strong dense    |
 | [Evaluation](patterns/evaluation/) | 20  | accuracy **0.95**, kappa 0.90, position-consistency 1.00 | an aligned judge agrees strongly with humans and shows no order bias |
 | [Reflection](patterns/reflection/) | 14  | one-shot 1.00, reflection 1.00                           | ceiling: the model needed no correction on these tasks (see note)    |
+
+## Two models: Gemini 3.1 Flash-Lite and Claude Haiku 4.5
+
+The same benchmark code ran against a second model from a different family, Claude
+Haiku 4.5, with no change to the library. The `Provider` seam switches from the
+OpenAI-compatible endpoint to the Anthropic Messages API. Retrieval variants that
+use embeddings (RAG dense and hybrid, routing semantic) share the same Gemini
+embeddings across both runs, so they are identical by construction; only the
+variants that call the chat model vary by model.
+
+| Benchmark and variant     | Gemini 3.1 Flash-Lite | Claude Haiku 4.5         |
+| ------------------------- | --------------------- | ------------------------ |
+| RAG dense (hit@1)         | 0.93                  | 0.93 (shared embeddings) |
+| RAG hybrid                | 0.90                  | 0.90 (shared embeddings) |
+| RAG hybrid + rerank       | 1.00                  | 1.00                     |
+| Routing semantic          | 0.96                  | 0.96 (shared embeddings) |
+| Routing LLM classifier    | 0.88                  | 1.00                     |
+| ReAct direct              | 0.07                  | 0.07                     |
+| ReAct loop                | 0.67                  | 0.33                     |
+| ReAct loop + verify       | 0.60                  | 0.07 (see note)          |
+| Reflection one-shot       | 1.00                  | 1.00                     |
+| Reflection loop           | 1.00                  | 1.00                     |
+| Evaluation judge accuracy | 0.95                  | 0.85                     |
+| Evaluation Cohen's kappa  | 0.90                  | 0.70                     |
+
+What the second model shows:
+
+- No model wins everything. Gemini is stronger on the multi-hop ReAct loop and on
+  judge reliability; Haiku classifies routing tiers perfectly where Gemini missed a
+  few. That spread is the honest answer to "did you just cherry-pick one model."
+- The reflection ceiling holds across both families. Two different models each solved
+  all 14 code tasks on the first attempt, so the reflection null is not a quirk of one
+  model. Reflection helps a model that fails, and neither of these models failed enough
+  on these tasks to need it.
+- Haiku is genuinely worse at the two-hop tool-use loop here (0.33 versus 0.67): it more
+  often gives up or chains the wrong lookup on the invented knowledge base.
+- The ReAct-plus-verify number for Haiku (0.07) is dominated by the iteration budget, not
+  answer quality. Eight of 15 tasks ran out of iterations before finishing, because
+  Haiku's loop is chattier and the verify step adds a model call per finish attempt,
+  against a budget that is the same for both models. A fair verify comparison would give
+  each model its own iteration budget; under one shared budget, the less efficient loop
+  pays for it. Reported as measured, with the cause stated.
+- The Haiku sweep cost $0.35, about ten times the Gemini sweep, almost all of it the
+  ReAct loops running longer. Haiku's list price is 4x Gemini Flash-Lite's on input and
+  3.3x on output.
+
+Per-model provenance: `benchmarks/results/` (Gemini) and `benchmarks/results/haiku/` (Haiku).
 
 ## ReAct: reasoning and acting beats a single call
 

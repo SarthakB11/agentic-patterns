@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import argparse
 import importlib
+import os
 import pathlib
 
 from benchmarks.harness import BenchResult
@@ -73,8 +74,12 @@ def write_results_md(results: list[BenchResult], total_cost: float) -> None:
         "",
         _sections(results),
     ]
-    SUMMARY_MD.parent.mkdir(exist_ok=True)
-    SUMMARY_MD.write_text("\n".join(body))
+    # A second model's run (BENCH_RESULTS_SUBDIR set) writes its summary into
+    # the same subfolder as its results, rather than overwriting the first.
+    subdir = os.environ.get("BENCH_RESULTS_SUBDIR", "")
+    summary_path = SUMMARY_MD.parent / subdir / "SUMMARY.md" if subdir else SUMMARY_MD
+    summary_path.parent.mkdir(parents=True, exist_ok=True)
+    summary_path.write_text("\n".join(body))
 
 
 def main() -> None:
@@ -94,7 +99,9 @@ def main() -> None:
 
     if args.live:
         write_results_md(results, total)
-        print(f"\nWrote benchmarks/results/SUMMARY.md. Total live cost: ${total:.4f}")
+        subdir = os.environ.get("BENCH_RESULTS_SUBDIR", "")
+        loc = f"benchmarks/results/{subdir + '/' if subdir else ''}SUMMARY.md"
+        print(f"\nWrote {loc}. Total live cost: ${total:.4f}")
     else:
         print("\nMock dry run complete (no cost). Use --live to measure and write RESULTS.md.")
 

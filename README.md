@@ -22,7 +22,7 @@ The patterns are not only implemented, they are measured. Running the repo's own
 - LLM reranking takes RAG hit@1 from 0.93 to 1.00 on a corpus built with keyword-collision distractors (N=30).
 - A correctness-aligned judge agrees with human labels 95% of the time, Cohen's kappa 0.90 (N=20).
 
-The full report, including an honest ceiling result for reflection and a judge-rubric bug this suite caught and fixed, is in [RESULTS.md](RESULTS.md). The whole live sweep cost about $0.035 and reproduces with `GEMINI_KEY=... python3 -m benchmarks.run_all --live`.
+The same suite also ran against a second model from a different family (Claude Haiku 4.5): no model wins everything, the reflection ceiling holds across both, and no single-model cherry-pick is doing the work. The full report, including that comparison, an honest ceiling result for reflection, and a judge-rubric bug this suite caught and fixed, is in [RESULTS.md](RESULTS.md). The Gemini sweep cost about $0.035 and reproduces with `GEMINI_KEY=... python3 -m benchmarks.run_all --live`.
 
 ## Quickstart
 

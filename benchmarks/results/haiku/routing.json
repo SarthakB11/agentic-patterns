@@ -1,0 +1,277 @@
+{
+  "name": "routing",
+  "model": "claude-haiku-4-5-20251001",
+  "n": 24,
+  "variants": {
+    "semantic": 0.9583333333333334,
+    "llm_classifier": 1.0,
+    "always_hard": 0.5
+  },
+  "headline": "llm_classifier routes 100% of 24 prompts to the correct tier (vs semantic 96%, llm_classifier 100%, oracle 100%), projecting $0.07530 to answer all tasks versus $0.14400 for always_hard (48% cheaper).",
+  "detail": {
+    "oracle_accuracy": 1.0,
+    "oracle_projected_cost_usd": 0.0753,
+    "projected_cost_usd": {
+      "semantic": 0.06957,
+      "llm_classifier": 0.0753,
+      "always_hard": 0.144
+    },
+    "cheap_model": "gemini-3.1-flash-lite",
+    "hard_model": "gemini-3.5-flash",
+    "assumed_answer_tokens": {
+      "cheap": [200, 150],
+      "hard": [400, 600]
+    }
+  },
+  "tasks": [
+    {
+      "id": 0,
+      "prompt": "What is the capital of Australia?",
+      "label": "cheap",
+      "semantic": "cheap",
+      "llm_classifier": "cheap",
+      "always_hard": "hard",
+      "semantic_correct": true,
+      "llm_classifier_correct": true
+    },
+    {
+      "id": 1,
+      "prompt": "What year did World War II end?",
+      "label": "cheap",
+      "semantic": "cheap",
+      "llm_classifier": "cheap",
+      "always_hard": "hard",
+      "semantic_correct": true,
+      "llm_classifier_correct": true
+    },
+    {
+      "id": 2,
+      "prompt": "Convert 'hello world' to uppercase.",
+      "label": "cheap",
+      "semantic": "cheap",
+      "llm_classifier": "cheap",
+      "always_hard": "hard",
+      "semantic_correct": true,
+      "llm_classifier_correct": true
+    },
+    {
+      "id": 3,
+      "prompt": "List the days of the week.",
+      "label": "cheap",
+      "semantic": "cheap",
+      "llm_classifier": "cheap",
+      "always_hard": "hard",
+      "semantic_correct": true,
+      "llm_classifier_correct": true
+    },
+    {
+      "id": 4,
+      "prompt": "What is the chemical symbol for gold?",
+      "label": "cheap",
+      "semantic": "cheap",
+      "llm_classifier": "cheap",
+      "always_hard": "hard",
+      "semantic_correct": true,
+      "llm_classifier_correct": true
+    },
+    {
+      "id": 5,
+      "prompt": "Rewrite 'i cant beleive its monday again' with correct spelling.",
+      "label": "cheap",
+      "semantic": "cheap",
+      "llm_classifier": "cheap",
+      "always_hard": "hard",
+      "semantic_correct": true,
+      "llm_classifier_correct": true
+    },
+    {
+      "id": 6,
+      "prompt": "What is 12 plus 7?",
+      "label": "cheap",
+      "semantic": "cheap",
+      "llm_classifier": "cheap",
+      "always_hard": "hard",
+      "semantic_correct": true,
+      "llm_classifier_correct": true
+    },
+    {
+      "id": 7,
+      "prompt": "Name the largest planet in the solar system.",
+      "label": "cheap",
+      "semantic": "cheap",
+      "llm_classifier": "cheap",
+      "always_hard": "hard",
+      "semantic_correct": true,
+      "llm_classifier_correct": true
+    },
+    {
+      "id": 8,
+      "prompt": "Format this date as YYYY-MM-DD: March 3, 2026.",
+      "label": "cheap",
+      "semantic": "cheap",
+      "llm_classifier": "cheap",
+      "always_hard": "hard",
+      "semantic_correct": true,
+      "llm_classifier_correct": true
+    },
+    {
+      "id": 9,
+      "prompt": "What is the boiling point of water in Celsius?",
+      "label": "cheap",
+      "semantic": "cheap",
+      "llm_classifier": "cheap",
+      "always_hard": "hard",
+      "semantic_correct": true,
+      "llm_classifier_correct": true
+    },
+    {
+      "id": 10,
+      "prompt": "Turn this into a bullet list: apples, bananas, cherries.",
+      "label": "cheap",
+      "semantic": "cheap",
+      "llm_classifier": "cheap",
+      "always_hard": "hard",
+      "semantic_correct": true,
+      "llm_classifier_correct": true
+    },
+    {
+      "id": 11,
+      "prompt": "Who wrote the play Romeo and Juliet?",
+      "label": "cheap",
+      "semantic": "cheap",
+      "llm_classifier": "cheap",
+      "always_hard": "hard",
+      "semantic_correct": true,
+      "llm_classifier_correct": true
+    },
+    {
+      "id": 12,
+      "prompt": "A train leaves at 2pm going 60mph and another leaves at 3pm going 90mph on the same route; at what time does the second train catch the first?",
+      "label": "hard",
+      "semantic": "hard",
+      "llm_classifier": "hard",
+      "always_hard": "hard",
+      "semantic_correct": true,
+      "llm_classifier_correct": true
+    },
+    {
+      "id": 13,
+      "prompt": "Compare the tax implications of an asset sale versus a stock sale for a company acquisition and recommend which structure minimizes buyer risk.",
+      "label": "hard",
+      "semantic": "hard",
+      "llm_classifier": "hard",
+      "always_hard": "hard",
+      "semantic_correct": true,
+      "llm_classifier_correct": true
+    },
+    {
+      "id": 14,
+      "prompt": "Derive the break-even unit price given a fixed cost of $50,000, a variable cost of $12 per unit, and a target volume of 5,000 units.",
+      "label": "hard",
+      "semantic": "hard",
+      "llm_classifier": "hard",
+      "always_hard": "hard",
+      "semantic_correct": true,
+      "llm_classifier_correct": true
+    },
+    {
+      "id": 15,
+      "prompt": "Prove that the square root of 2 is irrational.",
+      "label": "hard",
+      "semantic": "hard",
+      "llm_classifier": "hard",
+      "always_hard": "hard",
+      "semantic_correct": true,
+      "llm_classifier_correct": true
+    },
+    {
+      "id": 16,
+      "prompt": "Design a database schema for a multi-tenant SaaS billing system, explaining the tradeoffs between row-level and schema-level tenant isolation.",
+      "label": "hard",
+      "semantic": "hard",
+      "llm_classifier": "hard",
+      "always_hard": "hard",
+      "semantic_correct": true,
+      "llm_classifier_correct": true
+    },
+    {
+      "id": 17,
+      "prompt": "Optimize a marketing budget of $100,000 across three channels with different diminishing-returns curves to maximize total conversions.",
+      "label": "hard",
+      "semantic": "hard",
+      "llm_classifier": "hard",
+      "always_hard": "hard",
+      "semantic_correct": true,
+      "llm_classifier_correct": true
+    },
+    {
+      "id": 18,
+      "prompt": "Walk through the failure modes of a distributed cache that could cause stale reads under concurrent writes, and propose a fix for each.",
+      "label": "hard",
+      "semantic": "hard",
+      "llm_classifier": "hard",
+      "always_hard": "hard",
+      "semantic_correct": true,
+      "llm_classifier_correct": true
+    },
+    {
+      "id": 19,
+      "prompt": "A store offers 20% off, then an additional 10% off the discounted price, then charges 8% sales tax; what percentage of the original price does a customer pay?",
+      "label": "hard",
+      "semantic": "cheap",
+      "llm_classifier": "hard",
+      "always_hard": "hard",
+      "semantic_correct": false,
+      "llm_classifier_correct": true
+    },
+    {
+      "id": 20,
+      "prompt": "Analyze the second-order effects of raising a product's price by 15% on churn, referral volume, and support load, and recommend whether to proceed.",
+      "label": "hard",
+      "semantic": "hard",
+      "llm_classifier": "hard",
+      "always_hard": "hard",
+      "semantic_correct": true,
+      "llm_classifier_correct": true
+    },
+    {
+      "id": 21,
+      "prompt": "Explain step by step why a race condition can occur in this scenario: two threads increment the same unlocked counter variable 1000 times each, and predict the range of possible final values.",
+      "label": "hard",
+      "semantic": "hard",
+      "llm_classifier": "hard",
+      "always_hard": "hard",
+      "semantic_correct": true,
+      "llm_classifier_correct": true
+    },
+    {
+      "id": 22,
+      "prompt": "Given quarterly revenues of 120, 135, 128, and 150 (in thousands), forecast next quarter using a reasoned trend argument, not just the average.",
+      "label": "hard",
+      "semantic": "hard",
+      "llm_classifier": "hard",
+      "always_hard": "hard",
+      "semantic_correct": true,
+      "llm_classifier_correct": true
+    },
+    {
+      "id": 23,
+      "prompt": "Critique this argument for a logical fallacy: 'Our competitor raised prices and grew revenue, so raising our prices will also grow our revenue.'",
+      "label": "hard",
+      "semantic": "hard",
+      "llm_classifier": "hard",
+      "always_hard": "hard",
+      "semantic_correct": true,
+      "llm_classifier_correct": true
+    }
+  ],
+  "usage": {
+    "model": "claude-haiku-4-5-20251001",
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "api_calls": 0,
+    "cache_hits": 24,
+    "cost_usd": 0.0,
+    "stamped_at": "2026-07-16"
+  }
+}

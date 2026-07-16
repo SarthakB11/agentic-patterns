@@ -30,3 +30,6 @@ docs/research/
 # Benchmark response cache (local, never published)
 benchmarks/.cache/
 .env
+
+# Mock dry-run outputs (never real numbers)
+benchmarks/results/mock/
