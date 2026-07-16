@@ -1,0 +1,23 @@
+cff-version: 1.2.0
+message: "If you reference this project, please cite it as below."
+title: "agentic-patterns: reference implementations of core agentic AI patterns"
+abstract: >-
+  Twelve core agentic AI patterns implemented as runnable, tested reference code
+  in Python, each covered from its canonical form through 2025-2026 research.
+  Every example runs offline against a deterministic scripted provider with no
+  API key.
+authors:
+  - family-names: Bhardwaj
+    given-names: Sarthak
+type: software
+license: MIT
+repository-code: "https://github.com/SarthakB11/agentic-patterns"
+version: 0.1.0
+date-released: 2026-07-16
+keywords:
+  - agents
+  - large-language-models
+  - react
+  - retrieval-augmented-generation
+  - model-context-protocol
+  - guardrails

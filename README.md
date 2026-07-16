@@ -1,6 +1,11 @@
 # agentic-patterns
 
 [![CI](https://github.com/SarthakB11/agentic-patterns/actions/workflows/ci.yml/badge.svg)](https://github.com/SarthakB11/agentic-patterns/actions/workflows/ci.yml)
+[![Python](https://img.shields.io/badge/python-3.11%2B-blue.svg)](https://www.python.org/downloads/)
+[![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+[![Ruff](https://img.shields.io/badge/lint-ruff-261230.svg)](https://github.com/astral-sh/ruff)
+[![Checked with pyright](https://img.shields.io/badge/types-pyright-blue.svg)](https://github.com/microsoft/pyright)
+[![Tests](https://img.shields.io/badge/tests-750%2B%20offline-brightgreen.svg)](tests/)
 
 Twelve core agentic AI patterns implemented as runnable, tested reference code in plain Python. Each pattern folder covers its variants from the canonical form through what 2025-2026 research added: tree search over trajectories, localized plan repair, dual-LLM injection defenses, oversight capacity, stateless MCP, and more, each module tied to the paper or system it implements. Every example runs offline against a deterministic scripted mock provider: clone the repo and run any pattern with no API key, no install, and no network.
 
