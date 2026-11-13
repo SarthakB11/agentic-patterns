@@ -27,7 +27,7 @@ temperature 0, re-calls a few times).
 
 | Benchmark                          | N   | Result                                                   | What it shows                                                        |
 | ---------------------------------- | --- | -------------------------------------------------------- | -------------------------------------------------------------------- |
-| [ReAct](patterns/react/)           | 15  | direct 0.07, react **0.67**, react+verify 0.60           | tool use turns a near-total failure into a majority-solved task      |
+| [ReAct](patterns/react/)           | 15  | direct 0.00, react **0.73**, react+verify 0.67           | tool use turns a total failure into a mostly solved task             |
 | [Routing](patterns/routing/)       | 24  | semantic **0.96**, classifier 0.88, always-strong 0.50   | a router matches most oracle choices at about half the cost          |
 | [RAG](patterns/rag/)               | 30  | dense 0.93, hybrid 0.90, +rerank **1.00** (hit@1)        | reranking recovers every miss; naive fusion can hurt strong dense    |
 | [Evaluation](patterns/evaluation/) | 20  | accuracy **0.95**, kappa 0.90, position-consistency 1.00 | an aligned judge agrees strongly with humans and shows no order bias |
@@ -49,9 +49,9 @@ variants that call the chat model vary by model.
 | RAG hybrid + rerank       | 1.00                  | 1.00                     |
 | Routing semantic          | 0.96                  | 0.96 (shared embeddings) |
 | Routing LLM classifier    | 0.88                  | 1.00                     |
-| ReAct direct              | 0.07                  | 0.07                     |
-| ReAct loop                | 0.67                  | 0.33                     |
-| ReAct loop + verify       | 0.60                  | 0.07 (see note)          |
+| ReAct direct              | 0.00                  | 0.00                     |
+| ReAct loop                | 0.73                  | 0.40                     |
+| ReAct loop + verify       | 0.67                  | 0.13 (see note)          |
 | Reflection one-shot       | 1.00                  | 1.00                     |
 | Reflection loop           | 1.00                  | 1.00                     |
 | Evaluation judge accuracy | 0.95                  | 0.85                     |
@@ -66,14 +66,17 @@ What the second model shows:
   all 14 code tasks on the first attempt, so the reflection null is not a quirk of one
   model. Reflection helps a model that fails, and neither of these models failed enough
   on these tasks to need it.
-- Haiku is genuinely worse at the two-hop tool-use loop here (0.33 versus 0.67): it more
+- Haiku is genuinely worse at the two-hop tool-use loop here (0.40 versus 0.73): it more
   often gives up or chains the wrong lookup on the invented knowledge base.
-- The ReAct-plus-verify number for Haiku (0.07) is dominated by the iteration budget, not
-  answer quality. Eight of 15 tasks ran out of iterations before finishing, because
-  Haiku's loop is chattier and the verify step adds a model call per finish attempt,
-  against a budget that is the same for both models. A fair verify comparison would give
-  each model its own iteration budget; under one shared budget, the less efficient loop
-  pays for it. Reported as measured, with the cause stated.
+- The ReAct-plus-verify number for Haiku (0.13) is not a clean measure of verification.
+  Eight of 15 tasks ran out of iterations and three more hit the cap on verifier
+  rejections. The verifier ran 14 times and rejected 10 answers; 5 of those 10 were
+  answers the grader counts as right. Four of the eight iteration stops had no verifier
+  call at all, so the extra verify call is not what exhausted them. The larger cause is
+  in the loop itself: Haiku often writes its own "Observation:" lines inside a reply, and
+  the action regex in `patterns/react/parser.py` is greedy, so that invented text lands
+  in the search argument and in the trajectory the verifier reads. Reported as measured;
+  see the correction note under the ReAct section.
 - The Haiku sweep cost $0.35, about ten times the Gemini sweep, almost all of it the
   ReAct loops running longer. Haiku's list price is 4x Gemini Flash-Lite's on input and
   3.3x on output.
@@ -86,16 +89,45 @@ Fifteen two-hop questions over an invented knowledge base (fictional rivers,
 countries, capitals), so the model cannot answer from memory and must chain a
 `search` then a `lookup`. Ground truth is the gold answer string.
 
-- direct (one completion, no tools): **0.067**
-- react (the native tool-calling loop): **0.667**
-- react + verify (verify-before-finish gate): **0.600**
+- direct (one completion, no tools): **0.000**
+- react (the text-parsing loop, `run_react`): **0.733**
+- react + verify (verify-before-finish gate): **0.667**
 
-The tool-using loop takes a task the model solves 1 time in 15 on its own and
-solves it 10 times in 15. The verify gate did not help here and slightly hurt:
-it spends an extra model call per finish attempt, so under a fixed iteration
-budget it occasionally runs out on a task plain ReAct would have finished. That
-is an honest cost of verification, not a free win, and it matches the research
-caution that self-checking is not always worth its tokens.
+The tool-using loop takes a task the model never solves on its own and
+solves it 11 times in 15. The verify gate did not help here: it scored one task
+lower.
+
+### Correction (November 2026)
+
+An earlier version of this section said the verify gate lost a task because its
+extra model call eats into the fixed iteration budget. Replaying the cached run
+step by step shows that is wrong for Gemini. The verifier ran 11 times and
+accepted all 11 answers, so it never cost the loop a step. The two variants
+differ by one sentence in the system prompt, and their searches drifted apart
+(verify lost t03 and t14, and won t02). With N=15 and one run each, a one-task
+gap is noise.
+
+Most ReAct failures here come from the benchmark's own `search` tool, which
+matches by substring: "Lake Azurine" misses the key "azurine lake". Across both
+Gemini variants, 64 of 125 searches returned nothing, and all 8 budget stops
+spent at least 3 of their 6 steps on empty searches.
+
+Task t12 also had the wrong gold answer. The question asks for a country and the
+gold was the capital, "Northarrow". That scored every correct "Grendale" from
+the ReAct variants as wrong and passed a direct reply that only repeated the
+word "Northarrow". The task is fixed in `benchmarks/bench_react.py`, and the
+stored answers under `benchmarks/results/` were regraded with the corrected
+gold. No model call was repeated. Every ReAct number in this file is the
+regraded one:
+
+| Variant        | Gemini, as first graded | Gemini, regraded | Haiku, as first graded | Haiku, regraded |
+| -------------- | ----------------------- | ---------------- | ---------------------- | --------------- |
+| direct         | 1/15 (0.07)             | 0/15 (0.00)      | 1/15 (0.07)            | 0/15 (0.00)     |
+| react          | 10/15 (0.67)            | 11/15 (0.73)     | 5/15 (0.33)            | 6/15 (0.40)     |
+| react + verify | 9/15 (0.60)             | 10/15 (0.67)     | 1/15 (0.07)            | 2/15 (0.13)     |
+
+Nothing has been rerun with a fixed search tool or parser, so there is no
+measured score for those changes yet.
 
 ## Routing: match the strong model's choices for half the cost
 
@@ -178,7 +210,8 @@ difficulty further would not have been an honest measurement.
 - The invented knowledge base for ReAct and the distractor corpus for RAG are
   deliberate: they stop the model from answering from training memory, so the
   retrieval and tool-use effects are real rather than recalled.
-- Every per-task outcome, including the raw judge and answer strings, is in
-  `benchmarks/results/*.json` for inspection.
+- Every per-task outcome is in `benchmarks/results/*.json` for inspection. The
+  files keep final answers and verdicts. They do not keep the judge's reasoning
+  text or the step-by-step ReAct trajectories.
 - Numbers were produced with Gemini 3.1 Flash-Lite at temperature 0. The
   provider layer is cached so the reported numbers reproduce exactly.

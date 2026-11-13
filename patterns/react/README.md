@@ -105,7 +105,7 @@ Every demo calls `get_provider(script=...)`, which defaults to `MockProvider`. S
 
 ## Measured
 
-Against Gemini 3.1 Flash-Lite on 15 two-hop questions over an invented knowledge base, the native tool-calling loop lifted task success from 0.07 (a single completion with no tools) to 0.67. The verify-before-finish gate did not help on this set and slightly lowered success to 0.60, since its extra call per finish attempt can exhaust the iteration budget. Full method and numbers in [RESULTS.md](../../RESULTS.md#react-reasoning-and-acting-beats-a-single-call).
+Against Gemini 3.1 Flash-Lite on 15 two-hop questions over an invented knowledge base, the text-parsing loop (`run_react`) lifted task success from 0.00 (a single completion with no tools) to 0.73. The verify-before-finish gate did not help on this set: it scored 0.67, one task lower, although the verifier accepted every answer it checked, so the gap is run-to-run drift and not a cost of verification (see the correction note in RESULTS.md, which also covers a wrong gold answer on one task). Full method and numbers in [RESULTS.md](../../RESULTS.md#react-reasoning-and-acting-beats-a-single-call).
 
 ## Sources
 

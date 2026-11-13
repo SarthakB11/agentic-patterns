@@ -3,11 +3,11 @@
   "model": "gemini-3.1-flash-lite",
   "n": 15,
   "variants": {
-    "direct": 0.06666666666666667,
-    "react": 0.6666666666666666,
-    "react_verify": 0.6
+    "direct": 0.0,
+    "react": 0.7333333333333333,
+    "react_verify": 0.6666666666666666
   },
-  "headline": "On 15 invented two-hop questions, direct answering succeeded on 7% of tasks versus react 67% and react_verify 60%, with react best; mean model calls per task were direct 1.0, react 5.0, react_verify 5.5.",
+  "headline": "On 15 invented two-hop questions, direct answering succeeded on 0% of tasks versus react 73% and react_verify 67%, with react best; mean model calls per task were direct 1.0, react 5.0, react_verify 5.5.",
   "detail": {
     "mean_model_calls": {
       "direct": 1,
@@ -97,7 +97,7 @@
       "id": "t12",
       "variant": "direct",
       "answer": "There is no country with a capital named Northarrow, nor is there a location known as Cindrapass. These appear to be fictional or non-existent entities.",
-      "correct": true,
+      "correct": false,
       "model_calls": 1
     },
     {
@@ -202,7 +202,7 @@
       "id": "t12",
       "variant": "react",
       "answer": "Grendale",
-      "correct": false,
+      "correct": true,
       "model_calls": 3
     },
     {
@@ -307,7 +307,7 @@
       "id": "t12",
       "variant": "react_verify",
       "answer": "Grendale",
-      "correct": false,
+      "correct": true,
       "model_calls": 4
     },
     {

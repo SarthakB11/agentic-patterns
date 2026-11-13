@@ -3,11 +3,11 @@
   "model": "claude-haiku-4-5-20251001",
   "n": 15,
   "variants": {
-    "direct": 0.06666666666666667,
-    "react": 0.3333333333333333,
-    "react_verify": 0.06666666666666667
+    "direct": 0.0,
+    "react": 0.4,
+    "react_verify": 0.13333333333333333
   },
-  "headline": "On 15 invented two-hop questions, direct answering succeeded on 7% of tasks versus react 33% and react_verify 7%, with react best; mean model calls per task were direct 1.0, react 3.7, react_verify 6.2.",
+  "headline": "On 15 invented two-hop questions, direct answering succeeded on 0% of tasks versus react 40% and react_verify 13%, with react best; mean model calls per task were direct 1.0, react 3.7, react_verify 6.2.",
   "detail": {
     "mean_model_calls": {
       "direct": 1,
@@ -97,7 +97,7 @@
       "id": "t12",
       "variant": "direct",
       "answer": "I don't have any information about a country with a capital called \"Northarrow\" or a place called \"Cindrapass.\" These don't appear to be real geographical locations. Could you provide more context or clarify if these are fictional places?",
-      "correct": true,
+      "correct": false,
       "model_calls": 1
     },
     {
@@ -202,7 +202,7 @@
       "id": "t12",
       "variant": "react",
       "answer": "Grendale",
-      "correct": false,
+      "correct": true,
       "model_calls": 3
     },
     {
@@ -307,7 +307,7 @@
       "id": "t12",
       "variant": "react_verify",
       "answer": "Grendale",
-      "correct": false,
+      "correct": true,
       "model_calls": 4
     },
     {

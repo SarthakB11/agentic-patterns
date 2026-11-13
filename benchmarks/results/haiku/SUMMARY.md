@@ -18,7 +18,7 @@ Total measured cost for the full live sweep: **$0.3524** across 251 model calls.
 | bench_rag        | 30  | dense 0.93, hybrid 0.90, hybrid_rerank 1.00                           | On 30 questions over a 28-passage corpus (with keyword-collision distractors and paraphrased questions), hit@1 was dense=0.93, hybrid=0.90, hybrid_rerank=1.00 (best: hybrid_rerank).                      |
 | bench_reflection | 14  | one_shot 1.00, reflection 1.00                                        | reflection passed 100% of 14 code tasks vs 100% for one_shot, using a mean of 0.00 refine rounds.                                                                                                          |
 | routing          | 24  | semantic 0.96, llm_classifier 1.00, always_hard 0.50                  | llm_classifier routes 100% of 24 prompts to the correct tier (vs semantic 96%, llm_classifier 100%, oracle 100%), projecting $0.07530 to answer all tasks versus $0.14400 for always_hard (48% cheaper).   |
-| bench_react      | 15  | direct 0.07, react 0.33, react_verify 0.07                            | On 15 invented two-hop questions, direct answering succeeded on 7% of tasks versus react 33% and react_verify 7%, with react best; mean model calls per task were direct 1.0, react 3.7, react_verify 6.2. |
+| bench_react      | 15  | direct 0.00, react 0.40, react_verify 0.13                            | On 15 invented two-hop questions, direct answering succeeded on 0% of tasks versus react 40% and react_verify 13%, with react best; mean model calls per task were direct 1.0, react 3.7, react_verify 6.2. |
 | bench_evaluation | 20  | pointwise_accuracy 0.85, cohens_kappa 0.70, position_consistency 1.00 | LLM judge (gemini-3.1-flash-lite) scored 85% pointwise accuracy (kappa 0.70) against 20 human labels, with 100% position consistency over 5 pairwise comparisons.                                          |
 
 ## bench_rag
@@ -56,11 +56,11 @@ llm_classifier routes 100% of 24 prompts to the correct tier (vs semantic 96%, l
 
 ## bench_react
 
-On 15 invented two-hop questions, direct answering succeeded on 7% of tasks versus react 33% and react_verify 7%, with react best; mean model calls per task were direct 1.0, react 3.7, react_verify 6.2.
+On 15 invented two-hop questions, direct answering succeeded on 0% of tasks versus react 40% and react_verify 13%, with react best; mean model calls per task were direct 1.0, react 3.7, react_verify 6.2.
 
 - Model: claude-haiku-4-5-20251001
 - Tasks: 15
-- Metrics: direct = 0.067, react = 0.333, react_verify = 0.067
+- Metrics: direct = 0.000, react = 0.400, react_verify = 0.133
 - Detail: {'mean_model_calls': {'direct': 1, 'react': 3.6666666666666665, 'react_verify': 6.2}}
 - Cost this benchmark: $0.2576
 - Provenance: `benchmarks/results/bench_react.json`

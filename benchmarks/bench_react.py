@@ -80,8 +80,11 @@ _TASKS: list[tuple[str, str, str, tuple[str, str]]] = [
      "Fenhall", ("windmere plateau", "corvassa capital")),
     ("t11", "What is the capital of the country the Kelvorin River flows through, precisely?",
      "Marveth", ("kelvorin river", "ostrenia capital")),
+    # Gold was "Northarrow" until Nov 2026: the question asks for the country, so
+    # that graded a correct "Grendale" as wrong and let a direct reply that merely
+    # repeated "Northarrow" pass. See the correction note in RESULTS.md.
     ("t12", "Which country's capital is Northarrow, given it contains Cindrapass?",
-     "Northarrow", ("cindrapass", "grendale capital")),
+     "Grendale", ("cindrapass", "grendale capital")),
     ("t13", "What currency is used where the Duskfall Mountains stand?",
      "drenn", ("duskfall mountains", "palvaria currency")),
     ("t14", "What tongue is spoken around Lake Azurine's country?",
