@@ -36,6 +36,9 @@ API key:
     across three relatedness tiers, collapsing once the judge is unrelated.
 14. Process reward: step-level trajectory scoring, contrasting `mean`
     (passes) against `min` (fails) on the same unsupported middle step.
+15. Decision-model judging: a judge that returns P(yes) instead of text,
+    calibration metrics (AUROC, Brier, ECE), cutoff tuning on labels, and
+    an accept-or-escalate cascade to the LLM judge.
 
 Run it from the repository root:
 
@@ -51,6 +54,7 @@ from __future__ import annotations
 
 from patterns.evaluation import (
     aggregate,
+    decision_judge,
     ensemble,
     exact,
     leakage,
@@ -85,8 +89,9 @@ def main() -> None:
     _section_selective()
     _section_leakage()
     _section_process_reward()
+    _section_decision_judge()
 
-    print("All fourteen sections completed without exhausting their scripts.")
+    print("All fifteen sections completed without exhausting their scripts.")
 
 
 def _section_eval_set() -> None:
@@ -275,6 +280,28 @@ def _section_process_reward() -> None:
     print(f"min aggregation:  score={min_result.aggregate_score:.2f} passed={min_result.passed}")
     print("  -> min-aggregation catches the confidently-wrong middle step that mean washes out")
     assert mean_result.passed and not min_result.passed
+    print()
+
+
+def _section_decision_judge() -> None:
+    print("=== 15. Decision-model judging (P(yes), calibration, accept or escalate) ===")
+    cascade = decision_judge.run_decision_cascade_demo()
+    for v in cascade.verdicts:
+        route = "accepted" if v.accepted else "escalated to LLM judge"
+        print(f"  [{v.case_id:<20}] p_yes={v.p_yes:.2f} confidence={v.confidence:.2f} {route} -> passed={v.passed}")
+    print(
+        f"coverage={cascade.coverage:.2f} escalated={cascade.escalated_count} "
+        f"decision_only_accuracy={cascade.decision_accuracy:.2f} cascade_accuracy={cascade.cascade_accuracy:.2f}"
+    )
+    print(f"calibration: auroc={cascade.auroc:.2f} brier={cascade.brier:.3f} ece={cascade.ece:.3f}")
+    at_default, at_tuned, cutoff = decision_judge.run_cutoff_tuning_demo()
+    print(
+        f"cutoff 0.50: held-out accuracy={at_default.decision_accuracy:.2f} auroc={at_default.auroc:.2f}  "
+        f"tuned cutoff {cutoff:.2f}: held-out accuracy={at_tuned.decision_accuracy:.2f} auroc={at_tuned.auroc:.2f}"
+    )
+    print("  -> AUROC never moved: the ranking was fine and the cutoff was wrong, which only labels reveal")
+    assert cascade.cascade_accuracy > cascade.decision_accuracy and cascade.escalated_count == 2
+    assert at_tuned.decision_accuracy > at_default.decision_accuracy and at_default.auroc == at_tuned.auroc
     print()
 
 

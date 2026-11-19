@@ -4,6 +4,20 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims
 to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- `patterns/evaluation/decision_judge.py`: decision-model judging (a model
+  that returns P(yes) instead of text, such as TypeSafe's Jev), cutoff tuning
+  on labeled data, and the accept-or-escalate cascade from "JEV-as-a-Judge"
+  (arXiv:2609.26550), with a scripted offline model and a live
+  `TypeSafeDecisionModel` client.
+- Calibration metrics in `patterns/evaluation/meta.py`: AUROC, Brier score,
+  and expected calibration error.
+- `benchmarks/bench_decision_judge.py`: live Jev against the Gemini judge on
+  32 labeled answers, alone and in a cascade, with per-item costs.
+
 ## [0.1.0] - 2026-07-16
 
 First public release: twelve agentic AI patterns as runnable, tested reference

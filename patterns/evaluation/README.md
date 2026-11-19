@@ -62,11 +62,14 @@ flowchart TD
 - `trajectory.py`: agent-as-judge trajectory evaluation, grading an agent's whole action/observation trace against its goal, contrasted directly against final-answer-only judging on the same shortcut trajectory.
 - `aggregate.py`: pure metrics functions, mean score, pass rate, pairwise win rate, and an Elo-style ranking rolled up from pairwise verdicts (the same idea behind the LMSYS Chatbot Arena leaderboard, using an Elo update rather than a full Bradley-Terry fit for simplicity).
 - `regression.py`: a regression gate comparing a run's aggregate metric to a stored baseline within a tolerance band, with the non-zero CI exit code a real pipeline would check.
-- `meta.py`: meta-evaluation, Cohen's kappa for chance-corrected judge-vs-human agreement, and a test-retest same-verdict rate for judge stability across repeated runs.
+- `meta.py`: meta-evaluation, Cohen's kappa for chance-corrected judge-vs-human agreement, a test-retest same-verdict rate for judge stability across repeated runs, and three calibration metrics for judges that emit a probability: AUROC (can it rank good above bad at all, independent of any cutoff), Brier score, and expected calibration error (does a 0.9 mean right 90% of the time).
 - `validation_protocol.py`: the Minimum Viable Validation protocol, a third axis (position bias, via swapped-order comparisons) alongside `meta.py`'s kappa and test-retest, and a joint accept/reject decision that names the consistency-bias paradox, high stability with severe bias, still rejected.
 - `selective.py`: calibrated selective judging, a judge resamples itself to estimate confidence per case, abstains below a threshold, and escalates abstained cases, trading coverage for reliability along a measurable curve.
 - `leakage.py`: preference leakage measured, not just named, the win-rate gap a judge gives a related generator's output over an unrelated one on equal-quality work, across three relatedness tiers, collapsing once the judge is unrelated.
+- `decision_judge.py`: a decision-model judge, a model that generates no text and returns P(yes) for a yes/no question (TypeSafe's Jev and its "noul" primitive), with cutoff tuning on labeled data and the accept-or-escalate cascade from "JEV-as-a-Judge": keep the decision model's verdict when its confidence clears `tau`, otherwise hand the case to the pointwise LLM judge. Confidence is the probability of the label the cutoff picked, so a tuned cutoff and the escalation rule stay consistent. A scripted decision model runs offline; `TypeSafeDecisionModel` calls the live API.
 - `process_reward.py`: step-level process reward as a trajectory evaluator, scoring each step independently and aggregating under `min`/`product`/`mean`/`last`, localizing the weakest step instead of one holistic verdict.
+
+Not implemented in `decision_judge.py`: the paper's prospective threshold rule (pick the most permissive `tau` whose one-sided 95% lower bound stays within a margin of the fallback judge), left out so the module stays readable in one sitting, with `tune_cutoff` doing plain accuracy tuning instead; Jev's `choice`, `score` and `box` primitives, since a pass/fail judge needs only `noul`; and the open-weights students distilled from Jev's outputs, which are separate projects with their own endpoints.
 
 Not implemented: a full Bradley-Terry maximum-likelihood ranking. `aggregate.py` uses an Elo update instead, which serves the same purpose (turning pairwise verdicts into one global ranking) with far less code, at the cost of being order-sensitive to the sequence of matches, a fine tradeoff for a teaching example.
 
@@ -101,16 +104,18 @@ same_model  leakage_score=1.00 detected=True
 inheritance leakage_score=0.67 detected=True
 unrelated   leakage_score=0.00 detected=False
 ...
-All fourteen sections completed without exhausting their scripts.
+All fifteen sections completed without exhausting their scripts.
 ```
 
 ## Real providers
 
-Set `AGENTIC_PATTERNS_PROVIDER=openai` (with `OPENAI_API_KEY` set) or `AGENTIC_PATTERNS_PROVIDER=anthropic` (with `ANTHROPIC_API_KEY` set) to run every judge in this pattern against a real model, with no source change: each demo function builds its provider through `agentic_patterns.get_provider`. Set `AGENTIC_PATTERNS_EMBEDDER=openai` (with `OPENAI_API_KEY` set) to run `semantic.py` against real embeddings instead of the deterministic `HashEmbedder`.
+Set `AGENTIC_PATTERNS_PROVIDER=openai` (with `OPENAI_API_KEY` set) or `AGENTIC_PATTERNS_PROVIDER=anthropic` (with `ANTHROPIC_API_KEY` set) to run every judge in this pattern against a real model, with no source change: each demo function builds its provider through `agentic_patterns.get_provider`. Set `AGENTIC_PATTERNS_EMBEDDER=openai` (with `OPENAI_API_KEY` set) to run `semantic.py` against real embeddings instead of the deterministic `HashEmbedder`. Set `AGENTIC_PATTERNS_DECISION_MODEL=typesafe` (with `TYPESAFE_API_KEY` set) to call TypeSafe's Jev from `decision_judge.get_decision_model`; `TYPESAFE_MODEL` (default `jev-1.13.0`, pinned rather than `jev-latest`) and `TYPESAFE_BASE_URL` (default `https://api.typesafe.ai`) are overridable.
 
 ## Measured
 
 Against Gemini 3.1 Flash-Lite on 20 human-labeled answers, a correctness-aligned judge reached 0.95 accuracy and Cohen's kappa 0.90 with no position bias. An earlier version scored 0.60 accuracy and kappa 0.20 because its rubric graded support-desk polish instead of correctness, a mismatch this benchmark caught and fixed. Full method and numbers in [RESULTS.md](../../RESULTS.md#evaluation-a-judge-is-only-as-good-as-the-question-you-ask-it).
+
+TypeSafe's Jev, run as a decision-model judge on those 20 answers plus 12 arithmetic and logic answers (N=32), scored 0.91 accuracy at the default 0.5 cutoff with AUROC 0.97, against 0.97 for the Gemini judge. The accept-or-escalate cascade at `tau=0.9` reached 0.94 while settling 75% of items without the LLM, at 38% of the LLM-only cost. Escalation fixed two of Jev's errors and introduced one of the LLM's, and one confident Jev error (0.96 on a wrong answer) was never escalated. Details in [RESULTS.md](../../RESULTS.md#decision-model-judge-jev-alone-and-in-a-cascade).
 
 ## Sources
 
@@ -123,6 +128,9 @@ Against Gemini 3.1 Flash-Lite on 20 human-labeled answers, a correctness-aligned
 - Hunter Lightman, Vineet Kosaraju, Yura Burda, Harri Edwards, Bowen Baker, Teddy Lee, Jan Leike, John Schulman, Ilya Sutskever, Karl Cobbe, "Let's Verify Step by Step," May 2023. arXiv:2305.20050 (process supervision, step-level scoring, PRM800K; `process_reward.py`).
 - Jaehun Jung, Faeze Brahman, Yejin Choi, "Trust or Escalate: LLM Judges with Provable Guarantees for Human Agreement," July 2024. arXiv:2407.18370 (selective evaluation, Simulated Annotators for confidence, cascaded escalation, provable human-agreement level; `selective.py`).
 - Dawei Li, Renliang Sun, Yue Huang, Ming Zhong, Bohan Jiang, Jiawei Han, Xiangliang Zhang, Wei Wang, Huan Liu, "Preference Leakage: A Contamination Problem in LLM-as-a-judge," February 2025 (v3 March 2026). arXiv:2502.01534 (leakage score as related-minus-unrelated win-rate gap; same-model, inheritance, same-family tiers; `leakage.py`).
+- Yubo Li, Yidi Miao, Ramayya Krishnan, Rema Padman, "JEV-as-a-Judge: Accept When Confident, Escalate When Unsure," September 2026 (v6 October 2026). arXiv:2609.26550 (accept the decision model's verdict when its largest label probability clears `tau`, otherwise escalate to a reasoning judge whose verdict replaces it; `decision_judge.py`).
+- TypeSafe AI, "Introducing System One Models & Jev," September 15, 2026, https://typesafe.ai/blog/introducing-system-one-models-and-jev, and the noul primitive docs, https://docs.typesafe.ai/primitives/noul.md ("a single number representing the probability that the answer is yes"; the API `decision_judge.py` calls).
+- Arize, "Jev vs. LLM-as-a-Judge," September 2026, https://arize.com/blog/jev-as-a-judge.md (76% at the default 0.5 cutoff against Opus 5's 83% on RAGTruth, 87% for both once Jev's cutoff was tuned to 0.80; motivates `tune_cutoff`).
 - Zhu et al., "Where LLM Agents Fail and How They can Learn From Failures," September 2025. arXiv:2509.25370 (root-cause step attribution; motivates `process_reward.py`'s weak-step localization).
 - Gunjal et al., "Rubrics as Rewards," arXiv:2507.17746 (weighted rubric scoring, a training-time RL reward method; `pointwise.py`'s checklist judge borrows the rubric idea and drops the weighting, noted in its docstring).
 - "Am I More Pointwise or Pairwise?", arXiv:2602.02219 (position bias inside pointwise judging; `pointwise.py`'s order-check demo).
