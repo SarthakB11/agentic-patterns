@@ -16,22 +16,26 @@ task sets (N is stated per benchmark). What this is not: a leaderboard result
 or a reproduction of any paper's headline number. Ground truth is stated,
 every per-task outcome is recorded under `benchmarks/results/*.json`, and the
 whole suite is reproducible with `GEMINI_KEY=... python3 -m benchmarks.run_all --live`.
+The decision-model benchmark is the one exception: it also calls TypeSafe's
+Jev, needs a second key, and runs on its own (see its section).
 
-Total cost to produce every number below: about **$0.035** on Gemini 3.1
-Flash-Lite, on a cold run. Runs are cached under `benchmarks/.cache/`
+Total cost to produce every Gemini number below: about **$0.035** on Gemini
+3.1 Flash-Lite, on a cold run, plus under a tenth of a cent of Jev calls for
+the decision-model section. Runs are cached under `benchmarks/.cache/`
 (gitignored), so a re-run reproduces the same numbers for about a cent (only
 the ReAct tool-loop, whose message sequence is not perfectly deterministic at
 temperature 0, re-calls a few times).
 
 ## Summary
 
-| Benchmark                          | N   | Result                                                   | What it shows                                                        |
-| ---------------------------------- | --- | -------------------------------------------------------- | -------------------------------------------------------------------- |
-| [ReAct](patterns/react/)           | 15  | direct 0.00, react **0.73**, react+verify 0.67           | tool use turns a total failure into a mostly solved task             |
-| [Routing](patterns/routing/)       | 24  | semantic **0.96**, classifier 0.88, always-strong 0.50   | a router matches most oracle choices at about half the cost          |
-| [RAG](patterns/rag/)               | 30  | dense 0.93, hybrid 0.90, +rerank **1.00** (hit@1)        | reranking recovers every miss; naive fusion can hurt strong dense    |
-| [Evaluation](patterns/evaluation/) | 20  | accuracy **0.95**, kappa 0.90, position-consistency 1.00 | an aligned judge agrees strongly with humans and shows no order bias |
-| [Reflection](patterns/reflection/) | 14  | one-shot 1.00, reflection 1.00                           | ceiling: the model needed no correction on these tasks (see note)    |
+| Benchmark                              | N  | Result                                                   | What it shows                                                        |
+| -------------------------------------- | -- | -------------------------------------------------------- | -------------------------------------------------------------------- |
+| [ReAct](patterns/react/)               | 15 | direct 0.00, react **0.73**, react+verify 0.67           | tool use turns a total failure into a mostly solved task             |
+| [Routing](patterns/routing/)           | 24 | semantic **0.96**, classifier 0.88, always-strong 0.50   | a router matches most oracle choices at about half the cost          |
+| [RAG](patterns/rag/)                   | 30 | dense 0.93, hybrid 0.90, +rerank **1.00** (hit@1)        | reranking recovers every miss; naive fusion can hurt strong dense    |
+| [Evaluation](patterns/evaluation/)     | 20 | accuracy **0.95**, kappa 0.90, position-consistency 1.00 | an aligned judge agrees strongly with humans and shows no order bias |
+| [Decision judge](patterns/evaluation/) | 32 | Jev 0.91, LLM **0.97**, Jev-then-LLM cascade 0.94        | the cascade settles 75% of items without the LLM, at 38% of its cost |
+| [Reflection](patterns/reflection/)     | 14 | one-shot 1.00, reflection 1.00                           | ceiling: the model needed no correction on these tasks (see note)    |
 
 ## Two models: Gemini 3.1 Flash-Lite and Claude Haiku 4.5
 
@@ -182,6 +186,60 @@ with what the labels measure moved accuracy to 0.95 and kappa to 0.90. The
 lesson is the evaluation pattern's own: a judge that measures the wrong thing
 looks unreliable, and the fix is the question, not the model.
 
+## Decision-model judge: Jev alone and in a cascade
+
+TypeSafe's Jev (`jev-1.13.0`) is a decision model: it reads a state and a
+yes/no question and returns P(yes) with no generated text.
+`benchmarks/bench_decision_judge.py` runs `decision_judge.py` against the live
+Jev API on the evaluation benchmark's 20 labeled answers plus 12 new ones whose
+check takes a computation or a short deduction (17 x 23, the bat-and-ball
+question, whether 221 is prime, clock arithmetic, a hexagon's angle sum, a
+syllogism), 6 right and 6 wrong. Neither judge sees a reference answer. The
+LLM baseline is the same Gemini correctness judge as above, run on every item.
+
+| N=32                          | Jev at 0.5  | Gemini judge | Cascade, tau=0.9 |
+| ----------------------------- | ----------- | ------------ | ---------------- |
+| accuracy                      | 0.906       | **0.969**    | 0.938            |
+| factual (20) / reasoning (12) | 0.90 / 0.92 | 0.95 / 1.00  | 0.90 / 1.00      |
+| items settled without the LLM | 32          | 0            | 24 (75%)         |
+| cost                          | $0.0004     | $0.0047      | $0.0018          |
+
+Jev's calibration over the 32: AUROC **0.969**, Brier 0.079, ECE 0.093. A
+cutoff tuned on half the question pairs and scored on the other half (2-fold
+cross-fit, fold cutoffs 0.65 and 0.85) gave 0.875, one item worse than the
+default 0.5, and on the 12-item reasoning slice alone 0.75 against 0.92. Jev is
+already close to right at 0.5 here, so tuning on 16 items mostly fit noise,
+unlike the RAGTruth case Arize reports where tuning on a larger held-out set
+moved Jev from 76% to 87%. Tune a cutoff only on enough labels to trust it.
+
+What the cascade did, item by item. Jev was wrong three times. Two of those
+were unsure (0.60 on a wrong "subscriptions cannot be cancelled", 0.82 on a
+hexagon angle sum of 540 degrees) and escalated, and Gemini fixed both. The
+third was confident: 0.96 on "We only accept cash delivered in person" as an
+answer about payment methods, so it was never escalated and the cascade kept
+the error. Escalation also cost one: Jev correctly leaned fail (0.48) on "I
+don't have any information about that." for an order-status question, and
+Gemini, its fallback, passed it. Net, the cascade lands between the two
+judges, at 38% of the LLM-only cost.
+
+Jev is not deterministic across calls, so the benchmark asks every item
+twice and records both samples (`jev_p_yes`, `jev_p_yes_sample_2` in
+`benchmarks/results/bench_decision_judge.json`). The second sample changed no
+pass/fail verdict at 0.5 (test-retest 1.00), moved probabilities by at most
+0.08, flipped no accept-or-escalate decision at tau=0.9, and left cascade
+accuracy at 0.938. An earlier exploratory run, not in the committed JSON, had
+the hexagon item at 0.94 instead of 0.82: accepted rather than escalated, which
+kept Jev's error and put the cascade at 0.906. Items near the threshold can
+land on either side, so a cascade's accuracy is a distribution, not a number.
+
+The reasoning slice is short and easy (one-line arithmetic, well-known
+puzzles), so Jev's 11 of 12 there is not evidence against Li et al.'s finding
+that decision models lose ground on math and logic; it is too small and too
+simple to test it. Reproduce with `TYPESAFE_API_KEY=... GEMINI_KEY=... python3
+-m benchmarks.bench_decision_judge --live` (Jev cost: 9,696 input tokens per
+sample at $0.042 per million, output free; the costs in the table are priced
+from recorded token counts, so a cached re-run reports the same figures).
+
 ## Reflection: a ceiling result, reported as-is
 
 Fourteen code-generation tasks graded by real unit tests run in an isolated
@@ -213,5 +271,9 @@ difficulty further would not have been an honest measurement.
 - Every per-task outcome is in `benchmarks/results/*.json` for inspection. The
   files keep final answers and verdicts. They do not keep the judge's reasoning
   text or the step-by-step ReAct trajectories.
+- The decision-model benchmark calls TypeSafe's Jev, which has no temperature
+  setting and returns slightly different probabilities across calls; its
+  section reports two samples per item. It runs separately from `run_all`
+  because it needs a second API key.
 - Numbers were produced with Gemini 3.1 Flash-Lite at temperature 0. The
   provider layer is cached so the reported numbers reproduce exactly.

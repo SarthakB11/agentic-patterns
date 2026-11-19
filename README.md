@@ -21,6 +21,7 @@ The patterns are not only implemented, they are measured. Running the repo's own
 - A semantic router picks the right model tier 96% of the time at about half the cost of always using the strong model (N=24).
 - LLM reranking takes RAG hit@1 from 0.93 to 1.00 on a corpus built with keyword-collision distractors (N=30).
 - A correctness-aligned judge agrees with human labels 95% of the time, Cohen's kappa 0.90 (N=20).
+- A decision model (TypeSafe's Jev) as the first-pass judge settles 75% of items alone, and the accept-or-escalate cascade reaches 0.94 accuracy against the LLM judge's 0.97 at 38% of its cost (N=32).
 
 The same suite also ran against a second model from a different family (Claude Haiku 4.5): no model wins everything, the reflection ceiling holds across both, and no single-model cherry-pick is doing the work. The full report, including that comparison, an honest ceiling result for reflection, and a judge-rubric bug this suite caught and fixed, is in [RESULTS.md](RESULTS.md). The Gemini sweep cost about $0.035 and reproduces with `GEMINI_KEY=... python3 -m benchmarks.run_all --live`.
 
@@ -64,7 +65,7 @@ To run any example against a real API instead of the mock, set environment varia
 | [Memory](patterns/memory/)                       | Short-term windows and paging to vector stores, then typed write decisions, sleep-time consolidation, principled forgetting, and a five-ability benchmark harness                        | State must survive past the context window, across turns or across sessions                                   |
 | [RAG](patterns/rag/)                             | Naive dense to hybrid RRF and reranking, grading with abstain, then graph retrieval, deep-research loops, rationale-based reranking, and position effects                                | Answers must be grounded in a corpus the model was not trained on, with citations                             |
 | [Multi-agent](patterns/multi_agent/)             | Supervisor and workers, handoffs, debate, then dual-ledger orchestration with stall detection, failure attribution, agent cards, and the economics of adding an agent                    | Work genuinely splits into roles with separate contexts, and coordination overhead pays for itself            |
-| [Evaluation](patterns/evaluation/)               | Exact checks and LLM-as-judge with bias controls, then a three-axis judge validation protocol, process rewards, preference leakage, selective judging, and regression gates              | You change a prompt or model and need to know nothing broke                                                   |
+| [Evaluation](patterns/evaluation/)               | Exact checks and LLM-as-judge with bias controls, then a three-axis judge validation protocol, process rewards, preference leakage, selective judging, decision-model judges with calibration metrics, and regression gates              | You change a prompt or model and need to know nothing broke                                                   |
 | [MCP](patterns/mcp/)                             | A client and server from scratch over JSON-RPC 2.0: the stdio handshake and the stateless variant, plus integrity defenses, async tasks, elicitation, and discovery                      | A tool integration should be reusable across hosts and run behind a process boundary                          |
 | [Guardrails](patterns/guardrails/)               | Fail-closed validation at every trust boundary, up to dual-LLM quarantine, capability-based flow control, a policy engine, and an injection attack suite                                 | Anything untrusted flows in or consequential actions flow out                                                 |
 | [Human-in-the-loop](patterns/human_in_the_loop/) | Approval gates with audit and resume, risk tiers, then oversight as a finite fatiguing resource, learned gates that fail closed, and mandated-oversight mapping                          | An action is irreversible or expensive enough that a person must stay in the chain                            |
@@ -107,7 +108,7 @@ tests/                   one test file per pattern, plus core tests and a smoke 
                          that runs every entrypoint offline
 ```
 
-Current size: 206 pattern modules and a 754-test suite, all offline and deterministic.
+Current size: 207 pattern modules and a 785-test suite, all offline and deterministic.
 
 Design choices worth knowing about:
 

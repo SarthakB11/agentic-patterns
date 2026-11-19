@@ -19,6 +19,17 @@ test-retest reliability while carrying severe position bias, the study's
 named consistency-bias paradox. See `validation_protocol.py` for the third
 axis (position bias) and the joint accept/reject decision that requires all
 three axes to pass at once.
+
+The last three functions measure a different property: whether a judge's
+probability can be trusted, not only its verdict. A judge that emits a
+probability (a decision model such as TypeSafe's Jev, see
+`decision_judge.py`, or any judge whose confidence feeds an escalation
+rule like `selective.py`) needs three numbers. `auroc` asks whether good
+answers score above bad ones at all, independent of any cutoff.
+`brier_score` and `expected_calibration_error` ask whether a 0.9 means
+right about 90% of the time. A judge can rank perfectly (AUROC 1.0) and
+still be badly calibrated, which is exactly the case where tuning the
+cutoff fixes accuracy and leaving it at 0.5 does not.
 """
 
 from __future__ import annotations
@@ -104,3 +115,94 @@ def run_test_retest_demo() -> float:
     run_1 = [True, True, False]
     run_2 = [True, False, False]
     return test_retest_rate(run_1, run_2)
+
+
+def _check_probabilities(probabilities: list[float], labels: list[bool], name: str) -> None:
+    """Validate a probability list against its labels, shared by the calibration metrics."""
+    if not probabilities or not labels:
+        raise ValueError(f"{name} requires at least one labeled case")
+    if len(probabilities) != len(labels):
+        raise ValueError("probabilities and labels must be the same length")
+    if any(not (0.0 <= p <= 1.0) for p in probabilities):  # also rejects NaN
+        raise ValueError("every probability must lie in [0, 1]")
+
+
+def auroc(scores: list[float], labels: list[bool]) -> float:
+    """Area under the ROC curve: the chance a random positive outscores a random negative.
+
+    Computed directly as the Mann-Whitney statistic over every (positive,
+    negative) pair, a tie counting half, which is exact for small labeled
+    slices and needs no curve construction. 1.0 is a perfect ranking, 0.5
+    is no better than chance. It never looks at a cutoff, so it separates
+    "the judge cannot tell good from bad" from "the judge is fine but the
+    threshold is in the wrong place".
+
+    Raises:
+        ValueError: If the lists differ in length, are empty, or the labels
+            hold only one class (AUROC is undefined without both).
+    """
+    if not scores or len(scores) != len(labels):
+        raise ValueError("auroc requires non-empty scores and labels of the same length")
+    if any(s != s for s in scores):  # NaN is the only value not equal to itself
+        raise ValueError("auroc scores must not contain NaN")
+    positives = [s for s, y in zip(scores, labels) if y]
+    negatives = [s for s, y in zip(scores, labels) if not y]
+    if not positives or not negatives:
+        raise ValueError("auroc requires at least one positive and one negative label")
+    wins = 0.0
+    for p in positives:
+        for n in negatives:
+            if p > n:
+                wins += 1.0
+            elif p == n:
+                wins += 0.5
+    return wins / (len(positives) * len(negatives))
+
+
+def brier_score(probabilities: list[float], labels: list[bool]) -> float:
+    """Mean squared error between a predicted probability of pass and the 0/1 label.
+
+    Lower is better; 0.0 is perfect, and always answering 0.5 scores 0.25.
+    It penalizes both a wrong ranking and a right ranking at the wrong
+    confidence, so an underconfident judge pays for hedging even when
+    every verdict is correct.
+
+    Raises:
+        ValueError: If the lists differ in length, are empty, or hold a
+            value outside [0, 1].
+    """
+    _check_probabilities(probabilities, labels, "brier_score")
+    return sum((p - float(y)) ** 2 for p, y in zip(probabilities, labels)) / len(labels)
+
+
+def expected_calibration_error(probabilities: list[float], labels: list[bool], bins: int = 10) -> float:
+    """Weighted gap between stated confidence and observed pass rate, over equal-width bins.
+
+    Each probability falls into one of `bins` equal-width bins over [0, 1]
+    (1.0 lands in the top bin). Per bin, the gap is `|mean probability -
+    fraction labeled pass|`; ECE is those gaps weighted by bin size. 0.0
+    means "0.8" really is right 80% of the time. With small slices a few
+    bins hold one case each, so treat ECE as a direction, not a decimal.
+
+    This is the binary reliability form: it bins P(pass) and compares it
+    with the observed pass rate. Papers on classifiers often report the
+    top-label form instead (Guo et al., arXiv:1706.04599), binning the
+    confidence of the predicted label against accuracy; the two differ, so
+    say which one a reported number is.
+
+    Raises:
+        ValueError: If `bins` is below 1 or the probabilities are invalid.
+    """
+    _check_probabilities(probabilities, labels, "expected_calibration_error")
+    if bins < 1:
+        raise ValueError("bins must be at least 1")
+    grouped: dict[int, list[tuple[float, bool]]] = {}
+    for p, y in zip(probabilities, labels):
+        grouped.setdefault(min(int(p * bins), bins - 1), []).append((p, y))
+    total = len(labels)
+    ece = 0.0
+    for members in grouped.values():
+        mean_p = sum(p for p, _ in members) / len(members)
+        pass_rate = sum(1 for _, y in members if y) / len(members)
+        ece += len(members) / total * abs(mean_p - pass_rate)
+    return ece
